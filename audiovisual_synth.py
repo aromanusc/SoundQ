@@ -1,6 +1,8 @@
 import cv2
 import csv
 import random
+import librosa
+import soundfile as sf
 import numpy as np
 from tqdm import tqdm
 
@@ -10,18 +12,21 @@ from moviepy.editor import VideoFileClip
 from metadata_generator import MetadataSynth
 
 class VideoSynthesizer:
-	def __init__(self, input_360_video_path, output_video_path, overlay_coords, overlay_video_paths, min_duration, max_duration, metadata_name, total_duration=None):
+	def __init__(self, input_360_video_path, output_video_path, overlay_coords, overlay_video_paths, min_duration, max_duration, track_name, total_duration=None):
 		self.input_360_video_path = input_360_video_path
 		self.output_video_path = output_video_path
 		self.overlay_coords = overlay_coords
 		self.overlay_video_paths = overlay_video_paths
 		self.min_duration = min_duration
 		self.max_duration = max_duration
-		self.metadata_name = metadata_name
+		self.track_name = track_name
+		self.metadata_name = f'{track_name}_metadata'
 		self.total_duration = total_duration
 		self.channel_num = 4 # tetrahedral mic
 
-		self.video_fps = 30 # 33.333 ms
+		self.video_fps = 30		# 33.333 ms
+		self.audio_fps = 10 	# 100ms
+		self.audio_FS = 24000	# sampling rate (24kHz)
 
 		# Open the 360-degree video
 		self.cap_360 = cv2.VideoCapture(input_360_video_path)
@@ -49,7 +54,7 @@ class VideoSynthesizer:
 				'total_duration': overlay_duration
 			})
 
-		metadata_synth = MetadataSynth(self.metadata_name, self.overlay_coords, self.overlay_video_paths,
+		metadata_synth = MetadataSynth(self.track_name, self.overlay_coords, self.overlay_video_paths,
 							self.min_duration, self.max_duration, stream_format='audiovisual', total_duration=total_duration)
 		self.events_history = metadata_synth.gen_metadata() 
 
@@ -87,14 +92,20 @@ class VideoSynthesizer:
 
 	def generate_audio_mix_spatialized(self):
 		# audio_mix = np.zeros((self.channel_num, self.total_duration))
-		audio_mix = np.zeros((1, self.total_duration))
+		audio_mix = np.zeros((1, self.audio_FS*self.total_duration), dtype=np.float)
 		for event_data in self.events_history:
 			# Load the video file
 			video_clip = VideoFileClip(event_data['path'])
 			# Extract the audio
-			audio_clip = video_clip.audio
-			audio_mix[0, :] # here we need to assign 
-
+			audio_clip = video_clip.subclip(0, event_data['duration']/self.video_fps).audio
+			audio_sr = audio_clip.fps
+			audio_sig = librosa.resample(audio_clip.to_soundarray().T, orig_sr=audio_sr, target_sr=self.audio_FS)
+			start_idx = int(self.audio_FS * event_data['start_frame']/self.video_fps)
+			end_idx = int(self.audio_FS * event_data['end_frame']/self.video_fps)
+			# print("shape", audio_sig.shape, " event duration", event_data['duration'], start_idx, end_idx, end_idx-start_idx)
+			# print(audio_sig.mean(axis=0).shape, audio_mix[:, start_idx:end_idx].shape)
+			audio_mix[:, start_idx:start_idx+audio_sig.shape[1]] += audio_sig.mean(axis=0) # TODO: [fix] this may cause a 1 frame delay between audio and video streams
+		sf.write(f'{self.track_name}.wav', audio_mix.T, self.audio_FS)
 
 
 	def get_frame_at_frame_number(self, frame_number):
@@ -144,7 +155,8 @@ overlay_video_paths = ["/Users/adrianromanguzman/Downloads/MUSIC_dataset_script/
 min_duration = 3  # Minimum duration for overlay videos (in seconds)
 max_duration = 5  # Maximum duration for overlay videos (in seconds)
 total_duration = 12
-metadata_name = "event_metadata"  # File to save overlay info
+track_name = "fold1_room001_mix"  # File to save overlay info
 video_overlay = VideoSynthesizer(input_360_video_path, output_video_path, overlay_coords, overlay_video_paths,
-							 min_duration, max_duration, metadata_name, total_duration)
+							 min_duration, max_duration, track_name, total_duration)
 video_overlay.generate_video_mix_360()
+video_overlay.generate_audio_mix_spatialized()
