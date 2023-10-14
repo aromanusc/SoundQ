@@ -4,6 +4,8 @@ import random
 import numpy as np
 from tqdm import tqdm
 
+from moviepy.editor import VideoFileClip
+
 
 from metadata_generator import MetadataSynth
 
@@ -16,17 +18,18 @@ class VideoSynthesizer:
 		self.min_duration = min_duration
 		self.max_duration = max_duration
 		self.metadata_name = metadata_name
+		self.total_duration = total_duration
+		self.channel_num = 4 # tetrahedral mic
 
 		self.video_fps = 30 # 33.333 ms
 
 		# Open the 360-degree video
 		self.cap_360 = cv2.VideoCapture(input_360_video_path)
-		print("HEREEEE", input_360_video_path, self.cap_360)
 		self.frame_width = int(self.cap_360.get(3))
 		self.frame_height = int(self.cap_360.get(4))
 		
-		if total_duration is not None:
-			self.stream_total_frames = int(total_duration * self.video_fps)  # Calculate total frames based on total_duration
+		if self.total_duration is not None:
+			self.stream_total_frames = int(self.total_duration * self.video_fps)  # Calculate total frames based on total_duration
 		else:
 			self.stream_total_frames = int(self.cap_360.get(cv2.CAP_PROP_FRAME_COUNT))  # Use original video's length
 
@@ -56,7 +59,7 @@ class VideoSynthesizer:
 		pass
 
 
-	def overlay_videos_on_360(self, max_polyphony=3, silence_weight=36):
+	def generate_video_mix_360(self):
 		with tqdm(total=self.stream_total_frames) as pbar:
 			for iframe in range(self.stream_total_frames):
 				frame_360 = self.get_frame_at_frame_number(iframe) # get background to video to overlay events on
@@ -64,13 +67,13 @@ class VideoSynthesizer:
 				# Overlay all active videos onto frame_360
 				for overlay_data in active_events:
 					azimuth, elevation = overlay_data['azim'], overlay_data['elev']
-					azimuth_mapped = azimuth + 180
-					elevation_mapped = (-1) * elevation + 90
+					azimuth_proj = azimuth + 180
+					elevation_proj = (-1) * elevation + 90
 
 					overlay_video = cv2.VideoCapture(overlay_data['path'])
 					overlay_frame = self.get_overlay_frame(overlay_video, iframe)
 					overlay_frame = self.resize_overlay_frame(overlay_frame, 200, 200)
-					frame_360 = self.overlay_frame_on_360(frame_360, overlay_frame, azimuth_mapped, elevation_mapped)
+					frame_360 = self.overlay_frame_on_360(frame_360, overlay_frame, azimuth_proj, elevation_proj)
 
 				pbar.update(1) # update progress bar
 				self.out.write(frame_360)
@@ -81,6 +84,17 @@ class VideoSynthesizer:
 			overlay_video.release()
 		self.out.release()
 		cv2.destroyAllWindows()
+
+	def generate_audio_mix_spatialized(self):
+		# audio_mix = np.zeros((self.channel_num, self.total_duration))
+		audio_mix = np.zeros((1, self.total_duration))
+		for event_data in self.events_history:
+			# Load the video file
+			video_clip = VideoFileClip(event_data['path'])
+			# Extract the audio
+			audio_clip = video_clip.audio
+			audio_mix[0, :] # here we need to assign 
+
 
 
 	def get_frame_at_frame_number(self, frame_number):
@@ -133,4 +147,4 @@ total_duration = 12
 metadata_name = "event_metadata"  # File to save overlay info
 video_overlay = VideoSynthesizer(input_360_video_path, output_video_path, overlay_coords, overlay_video_paths,
 							 min_duration, max_duration, metadata_name, total_duration)
-video_overlay.overlay_videos_on_360()
+video_overlay.generate_video_mix_360()
