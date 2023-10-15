@@ -1,6 +1,5 @@
 import math
 
-
 # Reference METU outter trayectory:  bottom outter trayectory
 REF_OUT_TRAJ = ["034", "024", "014", "004", "104", "204",
 			"304", "404", "504", "604", "614", "624",
