@@ -1,3 +1,4 @@
+import os
 import cv2
 import csv
 import random
@@ -5,17 +6,18 @@ import librosa
 import soundfile as sf
 import numpy as np
 from tqdm import tqdm
-
+import scipy.signal as signal
 from moviepy.editor import VideoFileClip
 
-
+from utils import *
 from metadata_generator import MetadataSynth
 
 class VideoSynthesizer:
-	def __init__(self, input_360_video_path, output_video_path, overlay_coords, overlay_video_paths, min_duration, max_duration, track_name, total_duration=None):
+	def __init__(self, input_360_video_path, output_video_path, rirs, source_coords, overlay_video_paths, min_duration, max_duration, track_name, total_duration=None):
 		self.input_360_video_path = input_360_video_path
 		self.output_video_path = output_video_path
-		self.overlay_coords = overlay_coords
+		self.rirs = rirs # room_impulse responses
+		self.source_coords = source_coords
 		self.overlay_video_paths = overlay_video_paths
 		self.min_duration = min_duration
 		self.max_duration = max_duration
@@ -54,14 +56,9 @@ class VideoSynthesizer:
 				'total_duration': overlay_duration
 			})
 
-		metadata_synth = MetadataSynth(self.track_name, self.overlay_coords, self.overlay_video_paths,
+		metadata_synth = MetadataSynth(self.track_name, self.source_coords, self.overlay_video_paths,
 							self.min_duration, self.max_duration, stream_format='audiovisual', total_duration=total_duration)
 		self.events_history = metadata_synth.gen_metadata() 
-
-	def check_active_overlays(frame_number):
-		# Here we will check fr active overlays 
-		# return: active overlays list
-		pass
 
 
 	def generate_video_mix_360(self):
@@ -92,7 +89,7 @@ class VideoSynthesizer:
 
 	def generate_audio_mix_spatialized(self):
 		# audio_mix = np.zeros((self.channel_num, self.total_duration))
-		audio_mix = np.zeros((1, self.audio_FS*self.total_duration), dtype=np.float)
+		audio_mix = np.zeros((4, self.audio_FS*self.total_duration), dtype=np.float64)
 		for event_data in self.events_history:
 			# Load the video file
 			video_clip = VideoFileClip(event_data['path'])
@@ -100,12 +97,22 @@ class VideoSynthesizer:
 			audio_clip = video_clip.subclip(0, event_data['duration']/self.video_fps).audio
 			audio_sr = audio_clip.fps
 			audio_sig = librosa.resample(audio_clip.to_soundarray().T, orig_sr=audio_sr, target_sr=self.audio_FS)
+			audio_sig = self.spatialize_audio_event(audio_sig.mean(axis=0), event_data['rir_id'])
 			start_idx = int(self.audio_FS * event_data['start_frame']/self.video_fps)
 			end_idx = int(self.audio_FS * event_data['end_frame']/self.video_fps)
-			# print("shape", audio_sig.shape, " event duration", event_data['duration'], start_idx, end_idx, end_idx-start_idx)
-			# print(audio_sig.mean(axis=0).shape, audio_mix[:, start_idx:end_idx].shape)
-			audio_mix[:, start_idx:start_idx+audio_sig.shape[1]] += audio_sig.mean(axis=0) # TODO: [fix] this may cause a 1 frame delay between audio and video streams
+			print("shape", audio_sig.shape, " rir is", event_data['rir_id'],  " event duration", event_data['duration'], start_idx, end_idx, end_idx-start_idx)
+			audio_mix[:, start_idx:start_idx+audio_sig.shape[0]] += audio_sig.T #.mean(axis=0) # TODO: [fix] this may cause a 1 frame delay between audio and video streams
 		sf.write(f'{self.track_name}.wav', audio_mix.T, self.audio_FS)
+
+
+	def spatialize_audio_event(self, eventsig, riridx):
+		print(eventsig.shape, self.rirs[riridx][:, 0].shape)
+		spateventsig0 = scipy.signal.convolve(eventsig, np.squeeze(self.rirs[riridx][:, 0]), mode='full', method='fft')
+		spateventsig1 = scipy.signal.convolve(eventsig, np.squeeze(self.rirs[riridx][:, 1]), mode='full', method='fft')
+		spateventsig2 = scipy.signal.convolve(eventsig, np.squeeze(self.rirs[riridx][:, 2]), mode='full', method='fft')
+		spateventsig3 = scipy.signal.convolve(eventsig, np.squeeze(self.rirs[riridx][:, 3]), mode='full', method='fft')
+		spateventsig = np.stack((spateventsig0,spateventsig1,spateventsig2,spateventsig3),axis=1)
+		return spateventsig
 
 
 	def get_frame_at_frame_number(self, frame_number):
@@ -136,27 +143,64 @@ class VideoSynthesizer:
 
 
 # Example usage:
-input_360_video_path = "/Users/adrianromanguzman/Downloads/video_dev/dev-train-sony/fold3_room22_mix011.mp4"
+input_360_video_path = "/scratch/data/audio-visual-seld-dcase2023/data_dcase2023_task3/video_dev/dev-train-sony/fold3_room22_mix011.mp4"
 output_video_path = "output_video_overlayed.mp4"
-overlay_coords = [(-90, 0), (90, 0), (30, 45), (120, 0), (120, 30), (-120, 40), (0, -45), (0, -35), (0, -25), (0, -15), (0, +35), (0, 25)]  # Example coordinates in azimuth and elevation
-overlay_video_paths = ["/Users/adrianromanguzman/Downloads/MUSIC_dataset_script/data/536.mp4",
-						"/Users/adrianromanguzman/Downloads/MUSIC_dataset_script/data/320.mp4", 
-						"/Users/adrianromanguzman/Downloads/MUSIC_dataset_script/data/321.mp4", 
-						"/Users/adrianromanguzman/Downloads/MUSIC_dataset_script/data/328.mp4", 
-						"/Users/adrianromanguzman/Downloads/MUSIC_dataset_script/data/525.mp4", 
-						"/Users/adrianromanguzman/Downloads/MUSIC_dataset_script/data/264.mp4", 
-						"/Users/adrianromanguzman/Downloads/MUSIC_dataset_script/data/152.mp4",
-						"/Users/adrianromanguzman/Downloads/MUSIC_dataset_script/data/151.mp4",
-						"/Users/adrianromanguzman/Downloads/MUSIC_dataset_script/data/153.mp4",
-						"/Users/adrianromanguzman/Downloads/MUSIC_dataset_script/data/150.mp4",
-						"/Users/adrianromanguzman/Downloads/MUSIC_dataset_script/data/148.mp4",
-						"/Users/adrianromanguzman/Downloads/MUSIC_dataset_script/data/149.mp4"
+
+def get_audio_spatial_data(aud_fmt="mic", room="METU"):
+	if aud_fmt != "em32" and aud_fmt != "mic":
+		parser.error("You must provide a valid microphone name: em32, mic")
+
+	metu_db_dir = None
+	if room == "METU":
+		metu_db_dir = "/scratch/data/RIR_datasets/spargair/em32"
+	top_height = 5
+	mic_xyz = get_mic_xyz()
+	source_coords, rirs = [], []
+
+	rir_id = 0
+	# Outter trayectory: bottom to top
+	for height in range(0, top_height):
+		for num in REF_OUT_TRAJ:
+			# Coords computed based on documentation.pdf from METU Sparg
+			x = (3 - int(num[0])) * 0.5
+			y = (3 - int(num[1])) * 0.5
+			z = (2 - (int(num[2])-height)) * 0.3 + 1.5
+			source_xyz = [x, y, -1*z] # note -1 since METU is flipped up-side-down
+
+			azim, elev, _ = az_ele_from_source(mic_xyz, source_xyz)
+
+			source_coords.append((rir_id, azim, elev))
+			rir_name = num[0] + num[1] + str(int(num[2])-height)
+			ir_path = os.path.join(metu_db_dir, rir_name, f"IR_{aud_fmt}.wav")
+			irdata, sr = librosa.load(ir_path, mono=False, sr=48000)
+			irdata_resamp = librosa.resample(irdata, orig_sr=sr, target_sr=24000)
+			rirs.append(irdata_resamp.T)
+			rir_id += 1
+
+	return rirs, source_coords
+
+rirs, source_coords = get_audio_spatial_data()
+print("rirs shape", rirs[0].shape)
+# print(source_coords)
+# overlay_coords = [(-90, 0), (90, 0), (30, 45), (120, 0), (120, 30), (-120, 40), (0, -45), (0, -35), (0, -25), (0, -15), (0, +35), (0, 25)]  # Example coordinates in azimuth and elevation
+overlay_video_paths = ["/scratch/ssd1/audio_datasets/MUSIC_dataset/data/536.mp4",
+						"/scratch/ssd1/audio_datasets/MUSIC_dataset/data/320.mp4", 
+						"/scratch/ssd1/audio_datasets/MUSIC_dataset/data/321.mp4", 
+						"/scratch/ssd1/audio_datasets/MUSIC_dataset/data/328.mp4", 
+						"/scratch/ssd1/audio_datasets/MUSIC_dataset/data/525.mp4", 
+						"/scratch/ssd1/audio_datasets/MUSIC_dataset/data/264.mp4", 
+						"/scratch/ssd1/audio_datasets/MUSIC_dataset/data/152.mp4",
+						"/scratch/ssd1/audio_datasets/MUSIC_dataset/data/151.mp4",
+						"/scratch/ssd1/audio_datasets/MUSIC_dataset/data/153.mp4",
+						"/scratch/ssd1/audio_datasets/MUSIC_dataset/data/150.mp4",
+						"/scratch/ssd1/audio_datasets/MUSIC_dataset/data/148.mp4",
+						"/scratch/ssd1/audio_datasets/MUSIC_dataset/data/149.mp4"
 						]  # Paths to overlay videos
 min_duration = 3  # Minimum duration for overlay videos (in seconds)
 max_duration = 5  # Maximum duration for overlay videos (in seconds)
 total_duration = 12
 track_name = "fold1_room001_mix"  # File to save overlay info
-video_overlay = VideoSynthesizer(input_360_video_path, output_video_path, overlay_coords, overlay_video_paths,
+video_overlay = VideoSynthesizer(input_360_video_path, output_video_path, rirs, source_coords, overlay_video_paths,
 							 min_duration, max_duration, track_name, total_duration)
-video_overlay.generate_video_mix_360()
 video_overlay.generate_audio_mix_spatialized()
+video_overlay.generate_video_mix_360()
