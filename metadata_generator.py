@@ -113,32 +113,3 @@ class MetadataSynth:
 			for event in active_events:
 				self.metadata_writer.writerow([iframe,9,event["trackidx"],event["azim"],event["elev"]])
 		self.metadata_file.close()
-
-
-
-
-# # Example usage:
-# input_360_video_path = "/scratch/data/audio-visual-seld-dcase2023/data_dcase2023_task3/video_dev/dev-train-sony/fold3_room22_mix011.mp4"
-# output_video_path = "output_video_evented.mp4"
-# event_coords = [(-90, 0), (90, 0), (30, 45), (120, 0), (120, 30), (-120, 40), (0, -45), (0, -35), (0, -25), (0, -15), (0, +35), (0, 25)]  # Example coordinates in azimuth and elevation
-# event_video_paths = ["/scratch/ssd1/audio_datasets/MUSIC_dataset/data/536.mp4",
-# 						"/scratch/ssd1/audio_datasets/MUSIC_dataset/data/320.mp4", 
-# 						"/scratch/ssd1/audio_datasets/MUSIC_dataset/data/321.mp4", 
-# 						"/scratch/ssd1/audio_datasets/MUSIC_dataset/data/328.mp4", 
-# 						"/scratch/ssd1/audio_datasets/MUSIC_dataset/data/525.mp4", 
-# 						"/scratch/ssd1/audio_datasets/MUSIC_dataset/data/264.mp4", 
-# 						"/scratch/ssd1/audio_datasets/MUSIC_dataset/data/152.mp4",
-# 						"/scratch/ssd1/audio_datasets/MUSIC_dataset/data/151.mp4",
-# 						"/scratch/ssd1/audio_datasets/MUSIC_dataset/data/153.mp4",
-# 						"/scratch/ssd1/audio_datasets/MUSIC_dataset/data/150.mp4",
-# 						"/scratch/ssd1/audio_datasets/MUSIC_dataset/data/148.mp4",
-# 						"/scratch/ssd1/audio_datasets/MUSIC_dataset/data/149.mp4"
-# 						]  # Paths to event videos
-# min_duration = 3  # Minimum duration for event videos (in seconds)
-# max_duration = 5  # Maximum duration for event videos (in seconds)
-# total_duration = 10
-# metadata_name = "event_metadata"  # File to save event info
-# stream_format = "audiovisual" # audiovisual synthesis
-# video_event = MetadataSynth(metadata_name, event_coords, event_video_paths,
-# 							min_duration, max_duration, stream_format, total_duration)
-# video_event.gen_metadata()

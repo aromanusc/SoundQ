@@ -97,30 +97,33 @@ class VideoSynthesizer:
 			# Extract the audio
 			audio_clip = video_clip.subclip(0, event_data['duration']/self.video_fps).audio
 			audio_sr = audio_clip.fps
+			print("audio_clip.to_soundarray().T", audio_clip.to_soundarray().T.shape, event_data['duration']/self.video_fps)
 			audio_sig = librosa.resample(audio_clip.to_soundarray().T, orig_sr=audio_sr, target_sr=self.audio_FS)
+			print("resampled audio shape", audio_sig.shape)
 			audio_sig = self.spatialize_audio_event(audio_sig.mean(axis=0), event_data['rir_id'])
 			start_idx = int(self.audio_FS * event_data['start_frame']/self.video_fps)
-			end_idx = int(self.audio_FS * event_data['end_frame']/self.video_fps)
+			end_idx = int(self.audio_FS * event_data['duration']/self.video_fps)
+			print("shape on track to overly", audio_mix[:, start_idx:start_idx+audio_sig.shape[0]].shape, audio_sig.shape[0], end_idx)
 			audio_mix[:, start_idx:start_idx+audio_sig.shape[0]] += audio_sig.T #.mean(axis=0) # TODO: [fix] this may cause a 1 frame delay between audio and video streams
 		sf.write(f'{self.track_name}.wav', audio_mix.T, self.audio_FS)
 
 
-	def spatialize_audio_event(self, eventsig, riridx):
-		print(eventsig.shape, self.rirs[riridx][:, 0].shape)
-		nCh = self.rirs[riridx].shape[1] # get number of channels
-		print("Number of channels", nCh)
-		spateventsig_list = []
-		for ichan in range(nCh):
-			spatsig_channel = signal.convolve(eventsig, np.squeeze(self.rirs[riridx][:, ichan]), mode='full', method='fft')
-			spateventsig_list.append(spatsig_channel)
-		spateventsig = np.stack(spateventsig_list, axis=1)
-
-		# spateventsig0 = scipy.signal.convolve(eventsig, np.squeeze(self.rirs[riridx][:, 0]), mode='full', method='fft')
-		# spateventsig1 = scipy.signal.convolve(eventsig, np.squeeze(self.rirs[riridx][:, 1]), mode='full', method='fft')
-		# spateventsig2 = scipy.signal.convolve(eventsig, np.squeeze(self.rirs[riridx][:, 2]), mode='full', method='fft')
-		# spateventsig3 = scipy.signal.convolve(eventsig, np.squeeze(self.rirs[riridx][:, 3]), mode='full', method='fft')
-		# spateventsig = np.stack((spateventsig0,spateventsig1,spateventsig2,spateventsig3),axis=1)
+	def spatialize_audio_event(self, eventsig, ir_times, rir_idxs):
+		trim_samps = 256*21 # trim padding applied during the convolution process (constant independent of win_size or dur)
+		dur = eventsig.shape[0] / self.audio_FS 
+		irs = self.irs[rir_idxs]
+		rirs.append(rirs[-1]) # append a copy to enable the correct duration
+		output_signal = ctf_ltv_direct(sig, irs, ir_times, FS, win_size) 
+		output_signal /= output_signal.max() # apply max normalization (prevents clipping/distortion)
+		output_signal = output_signal[trim_samps:,:] # trim front padding segment 
 		return spateventsig
+
+		# nCh = self.rirs[rir_idxs].shape[1] # get number of channels
+		# spateventsig_list = []
+		# for ichan in range(nCh):
+		# 	spatsig_channel = signal.convolve(eventsig, np.squeeze(self.rirs[rir_idxs][:, ichan]), mode='same', method='fft')
+		# 	spateventsig_list.append(spatsig_channel)
+		# spateventsig = np.stack(spateventsig_list, axis=1)
 
 
 	def get_frame_at_frame_number(self, frame_number):
@@ -188,14 +191,44 @@ def get_audio_spatial_data(aud_fmt="em32", room="METU"):
 
 	return rirs, source_coords
 
+# rirs, source_coords = get_audio_spatial_data()
+# directory_path = "/scratch/ssd1/audio_datasets/MUSIC_dataset/data/"
+# overlay_video_paths = [os.path.join(directory_path, filename) for filename in os.listdir(directory_path) if os.path.isfile(os.path.join(directory_path, filename))]
+# min_duration = 3  # Minimum duration for overlay videos (in seconds)
+# max_duration = 4  # Maximum duration for overlay videos (in seconds)
+# total_duration = 20
+# track_name = "fold1_room001_mix"  # File to save overlay info
+# video_overlay = VideoSynthesizer(input_360_video_path, output_video_path, rirs, source_coords, overlay_video_paths,
+# 							 min_duration, max_duration, track_name, total_duration)
+# video_overlay.generate_audio_mix_spatialized()
+# video_overlay.generate_video_mix_360()
+
+
+
+
 rirs, source_coords = get_audio_spatial_data()
 directory_path = "/scratch/ssd1/audio_datasets/MUSIC_dataset/data/"
 overlay_video_paths = [os.path.join(directory_path, filename) for filename in os.listdir(directory_path) if os.path.isfile(os.path.join(directory_path, filename))]
 min_duration = 3  # Minimum duration for overlay videos (in seconds)
 max_duration = 4  # Maximum duration for overlay videos (in seconds)
-total_duration = 8
+total_duration = 20
 track_name = "fold1_room001_mix"  # File to save overlay info
 video_overlay = VideoSynthesizer(input_360_video_path, output_video_path, rirs, source_coords, overlay_video_paths,
 							 min_duration, max_duration, track_name, total_duration)
-video_overlay.generate_audio_mix_spatialized()
-video_overlay.generate_video_mix_360()
+
+sig, sr = librosa.load('/home/asroman/repos/Acoustic_Spatialvisualizer/violin.wav', sr=44100, mono=True)
+sig = librosa.resample(sig, orig_sr=sr, target_sr=24000)
+sig = sig[:24000 * 1]
+print(sig.shape)
+new_sig = video_overlay.spatialize_audio_event(sig, 0)
+print(new_sig.shape)
+
+sf.write('violin_orig.wav', sig, 24000)
+sf.write('violin_metu.wav', new_sig, 24000)
+
+
+# extra: 47,999
+
+
+
+
