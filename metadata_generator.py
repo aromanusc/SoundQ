@@ -54,7 +54,6 @@ class MetadataSynth:
 		events_history = [] # keep track of the events history
 		available_tacks = self.event_info
 		available_coords = self.event_coords
-		
 		for frame_number in range(self.stream_total_frames-self.max_frame_dur):
 			n_active = len(active_events) # get number of currently active events
 			for i in range(n_active, max_polyphony): 
@@ -73,7 +72,7 @@ class MetadataSynth:
 						'path': event_info["path"],
 						'trackidx': event_info["path"].split("/")[-1][:3], # TODO: here use instead another ideantifier??
 						'start_frame': frame_number,
-						'end_frame': frame_number+choose_duration,
+						'end_frame': frame_number+choose_duration-1,
 						'duration': choose_duration,
 						'rir_id': rir_id,
 						'azim': azi,
@@ -106,10 +105,10 @@ class MetadataSynth:
 		self.metadata_file_csv.close()
 	
 	def write_metadata_DCASE_format(self, event_list):
-		print(event_list)
 		for iframe in range(self.stream_total_frames):
 			frame_step = 1 if self.stream_format == "audio" else 3
 			active_events = [event_data for event_data in event_list if (iframe*frame_step >= event_data['start_frame'] and iframe*frame_step < event_data["end_frame"])]
-			for event in active_events:
-				self.metadata_writer.writerow([iframe,9,event["trackidx"],event["azim"],event["elev"]])
+			if len(active_events) > 0:
+				for event in active_events:
+					self.metadata_writer.writerow([iframe,9,event["trackidx"],event["azim"],event["elev"]])
 		self.metadata_file.close()
