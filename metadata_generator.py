@@ -62,7 +62,6 @@ class MetadataSynth:
 					available_tacks.pop(idxe)
 					# randomly choose duration for event and convert to FPS (*30)
 					choose_duration = self.get_event_duration(self.stream_format)
-					# choose_duration = 60 # start at sec 2
 					# choose a location at random from a trayectory
 					# this will have to be updated later to account for moving sources.
 					# we will get a list of discrete location points and update at each 100ms frame
@@ -106,10 +105,11 @@ class MetadataSynth:
 		self.metadata_file_csv.close()
 	
 	def write_metadata_DCASE_format(self, event_list):
+		# 'frame', 'class' 'trackID', 'azimuth', 'elevation', 'distance'
 		for iframe in range(self.stream_total_frames):
 			frame_step = 1 if self.stream_format == "audio" else 3
 			active_events = [event_data for event_data in event_list if (iframe*frame_step >= event_data['start_frame'] and iframe*frame_step < event_data["end_frame"])]
 			if len(active_events) > 0:
 				for event in active_events:
-					self.metadata_writer.writerow([iframe,9,event["trackidx"],event["azim"],event["elev"]])
+					self.metadata_writer.writerow([iframe,9,event["trackidx"],event["azim"],event["elev"], 0])
 		self.metadata_file.close()

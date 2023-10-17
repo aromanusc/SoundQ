@@ -105,7 +105,7 @@ def ctf_ltv_direct(sig, irs, ir_times, fs, win_size):
     elif len(ir_shape) == 3:
         nIrs = ir_shape[2]
         nCHir = ir_shape[1]
-    print(nIrs, len(ir_times))
+
     if nIrs != len(ir_times):
         return ValueError('Bad ir times')
 
