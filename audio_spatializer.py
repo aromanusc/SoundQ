@@ -6,19 +6,19 @@ import soundfile as sf
 
 from utils import *
 
-def get_audio_spatial_data(aud_fmt="mic", room="METU"):
+def get_audio_spatial_data(aud_fmt="em32", room="METU"):
 	assert aud_fmt == "em32" or aud_fmt == "mic", "You must provide a valid microphone name: em32, mic"
 
 	metu_db_dir = None
 	if room == "METU":
-		metu_db_dir = "/Volumes/T7/RIR-datasets/spargair/em32/"
+		metu_db_dir = "/scratch/data/RIR_datasets/spargair/em32/"
 	top_height = 5
 	mic_xyz = get_mic_xyz()
 	source_coords, rirs = [], []
 
 	rir_id = 0
 	# Outter trayectory: bottom to top
-	for height in range(3, 4): #top_height):
+	for height in range(0, top_height):
 		for num in REF_OUT_TRAJ:
 			# Coords computed based on documentation.pdf from METU Sparg
 			x = (3 - int(num[0])) * 0.5
@@ -192,12 +192,11 @@ def ctf_ltv_direct(sig, irs, ir_times, fs, win_size):
         # advance sample pointer
         idx += hop_size
         nf += 1
-    print("convolved signal shape", convsig.shape)
     convsig = convsig[(win_size):(nFrames * win_size) // 2, :]
 
     return convsig
 
-
+# Example usage
 if __name__ == "__main__":
     path_to_irs = '/Users/sivanding/database/spargair/em32/'
     MICS = [6, 10, 22, 26]
