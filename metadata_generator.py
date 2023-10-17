@@ -49,7 +49,7 @@ class MetadataSynth:
 		else: # "audiovisual"
 			return int(self.video_fps*random.uniform(self.min_duration, self.max_duration))
 
-	def gen_metadata(self, max_polyphony=3, silence_weight=36):
+	def gen_metadata(self, max_polyphony=3, silence_weight=36*2):
 		active_events = [] # tracks active events per frame
 		events_history = [] # keep track of the events history
 		available_tacks = self.event_info
@@ -62,6 +62,7 @@ class MetadataSynth:
 					available_tacks.pop(idxe)
 					# randomly choose duration for event and convert to FPS (*30)
 					choose_duration = self.get_event_duration(self.stream_format)
+					# choose_duration = 60 # start at sec 2
 					# choose a location at random from a trayectory
 					# this will have to be updated later to account for moving sources.
 					# we will get a list of discrete location points and update at each 100ms frame
@@ -72,7 +73,7 @@ class MetadataSynth:
 						'path': event_info["path"],
 						'trackidx': event_info["path"].split("/")[-1][:3], # TODO: here use instead another ideantifier??
 						'start_frame': frame_number,
-						'end_frame': frame_number+choose_duration-1,
+						'end_frame': frame_number+choose_duration,
 						'duration': choose_duration,
 						'rir_id': rir_id,
 						'azim': azi,
