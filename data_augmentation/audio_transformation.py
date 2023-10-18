@@ -68,6 +68,7 @@ def acs_meta(csv_data):
     label_aug = []
     label_aug.append(np.dstack((frame, id, source, azimuth - 90, -elevation, distance)))
     label_aug.append(np.dstack((frame, id, source, -azimuth - 90, elevation, distance)))
+    label_aug.append(np.dstack((frame, id, source, azimuth, elevation, distance)))
     label_aug.append(np.dstack((frame, id, source, -azimuth, -elevation, distance)))
     label_aug.append(np.dstack((frame, id, source, azimuth + 90, -elevation, distance)))
     label_aug.append(np.dstack((frame, id, source, -azimuth + 90, elevation, distance)))
