@@ -46,6 +46,7 @@ def acs_foa(audio):
     audio_aug = []
     audio_aug.append(np.dstack((chan_1, -chan_4, -chan_3, chan_2)))
     audio_aug.append(np.dstack((chan_1, -chan_4, chan_3, -chan_2)))
+    audio_aug.append(np.dstack((chan_1, chan_2, chan_3, chan_4)))
     audio_aug.append(np.dstack((chan_1, -chan_2, -chan_3, chan_4)))
     audio_aug.append(np.dstack((chan_1, chan_4, -chan_3, chan_2)))
     audio_aug.append(np.dstack((chan_1, chan_4, chan_3, chan_2)))
@@ -120,7 +121,7 @@ def acs(data_dir, aug_dir):
             # augmentation
             audio_aug = aug_fx(data)
 
-            for i in range(1, 8):
+            for i in range(1, 9):
                 if "metadata" in data_dir:
                     np.savetxt(file_aug + "_aug_acs_{}.csv".format(i), audio_aug[i - 1].squeeze(), delimiter=',',
                                fmt='%s')
