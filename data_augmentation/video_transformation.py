@@ -29,17 +29,17 @@ class VideoPixelTransformer:
 			raise ValueError("Invalid transformation ID")
 
 	def transform_1(self, frame):
-		frame = np.roll(frame, shift=1440, axis=1)
-		frame = np.flip(frame, axis=0)
+		frame = np.roll(frame, shift=1440, axis=1) # roll by -pi/2 azimuth
+		frame = np.flip(frame, axis=0)  # flip azimuth
 		return frame
 
 	def transform_2(self, frame):
-		frame = np.flip(frame, axis=1)
-		frame = np.roll(frame, shift=1440, axis=1)
+		frame = np.flip(frame, axis=1) # flip azimuth
+		frame = np.roll(frame, shift=1440, axis=1) # roll by pi/2 azimuth
 		return frame
 
 	def transform_3(self, frame):
-		return frame
+		return frame # identity
 
 	def transform_4(self, frame):
 		frame = np.flip(frame, axis=1) # flip azimuth
@@ -47,13 +47,13 @@ class VideoPixelTransformer:
 		return frame
 
 	def transform_5(self, frame):
-		frame = np.roll(frame, shift=480, axis=1) # roll by pi/2
-		frame = np.flip(frame, axis=0)
+		frame = np.roll(frame, shift=480, axis=1) # roll by pi/2 azimuth
+		frame = np.flip(frame, axis=0) # flip elevation
 		return frame
 
 	def transform_6(self, frame):
-		frame = np.flip(frame, axis=1)
-		frame = np.roll(frame, shift=480, axis=1) # roll by pi/2
+		frame = np.flip(frame, axis=1) # flip azimuth
+		frame = np.roll(frame, shift=480, axis=1) # roll by pi/2 azimuth
 		return frame
 
 	def transform_7(self, frame):
@@ -61,9 +61,9 @@ class VideoPixelTransformer:
 		return frame
 
 	def transform_8(self, frame):
-		frame = np.flip(frame, axis=1)
-		frame = np.roll(frame, shift=960, axis=1)
-		frame = np.flip(frame, axis=0)
+		frame = np.flip(frame, axis=1) # flip azimuth
+		frame = np.roll(frame, shift=960, axis=1) # roll by pi azimuth
+		frame = np.flip(frame, axis=0) # flip elevation
 		return frame
 
 	def process_video(self, output_path, transformation_id):
