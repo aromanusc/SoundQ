@@ -1,0 +1,3 @@
+[submodule "audiovisual_models/audio-visual-seld-dcase2023"]
+	path = audiovisual_models/audio-visual-seld-dcase2023
+	url = https://github.com/sony/audio-visual-seld-dcase2023.git
