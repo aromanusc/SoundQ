@@ -1,3 +1,9 @@
 [submodule "audiovisual_models/audio-visual-seld-dcase2023"]
 	path = audiovisual_models/audio-visual-seld-dcase2023
 	url = https://github.com/sony/audio-visual-seld-dcase2023.git
+[submodule "detection_models/detectron2"]
+	path = detection_models/detectron2
+	url = https://github.com/facebookresearch/detectron2.git
+[submodule "detection_models/Detic"]
+	path = detection_models/Detic
+	url = https://github.com/facebookresearch/Detic.git
