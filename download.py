@@ -1,7 +1,8 @@
 import csv
 from pytube import YouTube
-from moviepy.video.io.VideoFileClip import VideoFileClip
+from moviepy.video.io.VideoFileClip import VideoFileClip, AudioFileClip
 import os
+from pydub import AudioSegment
 
 # Directory names for each class
 class_directories = {
@@ -21,7 +22,7 @@ class_directories = {
 }
 
 # Set the base directory for the dataset
-dataset_base_dir = "/Users/rithikpothuganti/cs677/new-project/SoundQ/data/download_data/Dataset"
+dataset_base_dir = "/Volumes/T7/SoundQ-YT-data" #"/Users/rithikpothuganti/cs677/new-project/SoundQ/data/download_data/Dataset"
 
 def ensure_directory_structure():
     if not os.path.exists(dataset_base_dir):
@@ -35,7 +36,7 @@ def ensure_directory_structure():
 def download_and_trim(url, start_time, end_time, class_label, sequence_number):
     try:
         yt = YouTube(url)
-        stream = yt.streams.get_highest_resolution()
+        stream = yt.streams.filter(file_extension="mp4", progressive=True).first() #yt.streams.get_highest_resolution()
         temp_filename = f"{yt.video_id}.mp4"
 
         # Download to a temporary file
@@ -43,11 +44,13 @@ def download_and_trim(url, start_time, end_time, class_label, sequence_number):
 
         output_directory = os.path.join(dataset_base_dir, class_directories[class_label])
         output_filename = os.path.join(output_directory, f"clip{sequence_number}.mp4")
-
+        
         # Trim the video
         with VideoFileClip(temp_filename) as video:
             new = video.subclip(start_time, end_time)
-            new.write_videofile(output_filename, codec="libx264")
+            audio = AudioFileClip(temp_filename).subclip(start_time, end_time)
+            new = new.set_audio(audio)
+            new.write_videofile(output_filename, codec="libx264", audio_codec="aac")
 
         os.remove(temp_filename)
     except Exception as e:
@@ -76,7 +79,7 @@ def process_csv(csv_file):
 
             start_seconds = convert_time(row['start'])
             end_seconds = convert_time(row['end'])
-            download_and_trim(row['Link'], start_seconds, end_seconds, class_label, video_counter[class_label])
+            download_and_trim(row['link'], start_seconds, end_seconds, class_label, video_counter[class_label])
 
-csv_path = "/Users/rithikpothuganti/cs677/new-project/SoundQ/dataset.csv"
+csv_path = "./dataset.csv"
 process_csv(csv_path)
