@@ -117,9 +117,9 @@ if __name__ == "__main__":
     extractor = BoundingBoxExtractor(config_file, weights_url)
     extractor.load_custom_vocabulary()
 
-    video_dev_src = "/scratch/data/audio-visual-seld-dcase2023/data_dcase2023_task3/video_dev/"  # Provide the path to the input video file
-    dest_path = "/scratch/data/audio-visual-seld-dcase2023/data_dcase2023_task3/video_bbox_dev"
-    mp4_file_paths = ["/scratch/data/audio-visual-seld-dcase2023/data_dcase2023_task3/video_dev/dev-train-tau-aug-acs/fold3_room6_mix005_aug_acs_4.mp4"]#glob.glob(os.path.join(video_dev_src, '**/*.mp4'), recursive=True)
+    video_dev_src = "/path/to/STARSS23/video_dev/"  # Provide the path to the input video file
+    dest_path = "/dest/path/to/video_bbox_dev" # Provide the destination path to the processed JSON bbox files
+    mp4_file_paths = glob.glob(os.path.join(video_dev_src, '**/*.mp4'), recursive=True)
     total_files = len(mp4_file_paths)
     for i, video_file in enumerate(mp4_file_paths):
         print(f"File progress {i+1}/{total_files}")
