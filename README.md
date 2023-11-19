@@ -6,6 +6,10 @@
 
 - A suite of scripts to perform `data_augmentation` on 360-degree audio and video.
 
+  - Integrating audio channel swapping (ACS) as per [Wang et al.](https://arxiv.org/abs/2101.02919)
+
+  - Integrating video pixel swapping (VPS) as per [Wang et al.](https://dcase.community/documents/challenge2023/technical_reports/DCASE2023_Du_102_t3.pdf)
+
 - An enhanced audio-visual SELDNet model with comparable performance to the [audio-only SELDNet23](https://github.com/sharathadavanne/seld-dcase2023)
 
   - The model integrates [Detic](https://github.com/facebookresearch/Detic), but any other detection model can also be integrated within the training pipeline.
