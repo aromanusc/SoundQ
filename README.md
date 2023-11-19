@@ -1,49 +1,15 @@
 # SoundQ
 
-# Environment setup
+## Features
 
-We recommend using conda, this eases some dependencies with cuda for running all the available submodules in this repo.
+- An audio-visual synthetic data generator with spatial audio and 360-degree video. 
 
-```bash
-conda create --name <env_name> python=3.8 -y
-conda activate <env_name>
-conda install pytorch torchvision torchaudio cudatoolkit=11.1 -c pytorch-lts -c nvidia
-```
+- A suite of scripts to perform `data_augmentation` on 360-degree audio and video.
 
-# Start repo submodules
+- An enhanced audio-visual SELDNet model with comparable performance to the [audio-only SELDNet23](https://github.com/sharathadavanne/seld-dcase2023)
 
-```bash
-git submodule sync --recursive
-git submodule update --init --recursive
-```
+  - The model integrates [Detic](https://github.com/facebookresearch/Detic), but any other detection model can also be integrated within the training pipeline.
 
-# Setup `audiovisual_seld`
+## Installation
 
-# Setup `detection/`
-
-Note: adapted from [Detic docs](https://github.com/facebookresearch/Detic/blob/main/docs/INSTALL.md)
-
-### Requirements
-- Linux or macOS with Python ≥ 3.6
-- PyTorch ≥ 1.8.
-  Install them together at [pytorch.org](https://pytorch.org) to make sure of this. Note, please check
-  PyTorch version matches that is required by Detectron2.
-- Detectron2: follow [Detectron2 installation instructions](https://detectron2.readthedocs.io/tutorials/install.html).
-
-
-### Install submodules required packages
-```bash
-cd detectron2
-pip install -e .
-
-cd ..
-cd Detic
-pip install -r requirements.txt
-```
-
-Our project uses two submodules, [CenterNet2](https://github.com/xingyizhou/CenterNet2.git) and [Deformable-DETR](https://github.com/fundamentalvision/Deformable-DETR.git). If you forget to add `--recurse-submodules`, do `git submodule init` and then `git submodule update`. To train models with Deformable-DETR (optional), we need to compile it
-
-```
-cd third_party/Deformable-DETR/models/ops
-./make.sh
-```
+See [installation instructions](docs/INSTALL.md).
