@@ -22,6 +22,8 @@ The following table includes only the best performing system (as documented in [
 
 | Model | Dataset | ER<sub>20°</sub> | F<sub>20°</sub> | LE<sub>CD</sub> | LR<sub>CD</sub> |
 | ---- | ----| --- | --- | --- | --- |
-| Audio-only SELDNet23 (baseline) | Ambisonic (FOA + Multi-ACCDOA) | 0.57 | 29.9 % | 21.6&deg; | 47.7 % |
-| Audio-visual SELDNet23 (baseline) | Ambisonic + Video | 1.07 | 14.3  % | 48.0 &deg; | 35.5 % |
-| ** Audio-visual SELDNet23 (ours) ** | Ambisonic (FOA + Multi-ACCDOA) + Video | 0.65 | 24.9 % | 18.7&deg; | 37.5 % |
+| AO SELDNet23 (baseline) | Ambisonic (FOA + Multi-ACCDOA) | 0.57 | 29.9 % | 21.6&deg; | 47.7 % |
+| AV SELDNet23 (baseline) | Ambisonic + Video | 1.07 | 14.3  % | 48.0 &deg; | 35.5 % |
+| **AV SELDNet23 (ours)** | Ambisonic (FOA + Multi-ACCDOA) + Video | 0.65 | 24.9 % | 18.7&deg; | 37.5 % |
+
+Legend: AO=audio-only, AV=audio-visual
