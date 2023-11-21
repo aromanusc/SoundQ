@@ -374,7 +374,7 @@ def main(argv):
         print('Dumping recording-wise test results in: {}'.format(dcase_output_test_folder))
 
 
-        test_loss = test_epoch(data_gen_test, model, criterion, dcase_output_test_folder, params, device, True)
+        test_loss = test_epoch(data_gen_test, model, criterion, dcase_output_test_folder, params, device, False)
 
         use_jackknife=True
         test_ER, test_F, test_LE, test_LR, test_seld_scr, classwise_test_scr = score_obj.get_SELD_Results(dcase_output_test_folder, is_jackknife=use_jackknife )
