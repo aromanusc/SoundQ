@@ -18,12 +18,14 @@ class AudioVisualSynthesizer:
 	def __init__(self, input_360_video_path, rirs, source_coords, overlay_video_paths, min_duration, max_duration, total_duration=None):
 		self.input_360_video_path = input_360_video_path
 		self.rirs = rirs # room_impulse responses used for audio spatialization
+		# TODO
 		self.channel_num = self.rirs[0].shape[1] # channel count in mic array
 		self.source_coords = source_coords
 		self.overlay_video_paths = overlay_video_paths
 		self.min_duration = min_duration
 		self.max_duration = max_duration
 		self.total_duration = total_duration
+		# TODO
 		self.channel_num = self.rirs[0].shape[1] # channel count in array
 
 		self.video_fps = 30		# 33.333 ms
@@ -75,12 +77,14 @@ class AudioVisualSynthesizer:
 					elevation_proj = (-1) * elevation + 90
 
 					overlay_video = cv2.VideoCapture(overlay_data['path'])
-					start_offset = 2 * 30 # start after the first two seconds of the video (usually when musicians setup)
-					overlay_frame = self.get_overlay_frame(overlay_video, iframe+start_offset)
+					overlay_frame = self.get_overlay_frame(overlay_video, iframe)
+					if overlay_frame is None:
+						continue
 					overlay_frame = self.resize_overlay_frame(overlay_frame, 200, 200)
 					frame_360 = self.overlay_frame_on_360(frame_360, overlay_frame, azimuth_proj, elevation_proj)
 
 				pbar.update(1) # update progress bar
+
 				out_video.write(frame_360)
 
 		# Release video captures and writer
@@ -90,15 +94,17 @@ class AudioVisualSynthesizer:
 
 
 	def generate_audio_mix_spatialized(self, track_name):
+		# TODO
+		return
 		audio_mix = np.zeros((self.channel_num, self.audio_FS*self.total_duration), dtype=np.float64)
 		for event_data in self.events_history:
 			# Load the video file
 			video_clip = VideoFileClip(event_data['path'])
+			print(event_data['path'])
 			# Extract the audio
-			start_offset = 2 # start after the first two seconds of the video (usually when musicians setup)
-			audio_clip = video_clip.subclip(start_offset, event_data['duration']/self.video_fps + start_offset + 1).audio
+			audio_clip = video_clip.audio
 			audio_sr = audio_clip.fps
-			audio_sig = librosa.resample(audio_clip.to_soundarray().T, orig_sr=audio_sr, target_sr=self.audio_FS)
+			audio_sig = librosa.resample(audio_clip.to_soundarray(11025).T, orig_sr=audio_sr, target_sr=self.audio_FS)
 			start_idx = int(self.audio_FS * event_data['start_frame']/self.video_fps)
 			dur_samps = int(self.audio_FS * event_data['duration']/self.video_fps)
 			audio_sig = self.spatialize_audio_event(audio_sig.mean(axis=0), event_data['rir_id'], dur_samps)
@@ -108,10 +114,10 @@ class AudioVisualSynthesizer:
 
 
 	def spatialize_audio_event(self, eventsig, rir_idxs, dur_samps):
-		trim_samps = 256*21 # trim padding applied during the convolution process (constant independent of win_size or dur)
+		trim_samps = 0 # trim padding applied during the convolution process (constant independent of win_size or dur)
 		trim_dur = trim_samps/self.audio_FS # get duration in seconds for the padding section
 		dur_sec = dur_samps/self.audio_FS
-
+		print(dur_samps, trim_samps, type(eventsig))
 		eventsig = eventsig[:dur_samps+trim_samps]
 		dur_sec += trim_dur 
 
@@ -163,14 +169,16 @@ class AudioVisualSynthesizer:
 
 
 # Example usage:
-input_360_video_path = "/scratch/data/audio-visual-seld-dcase2023/data_dcase2023_task3/video_dev/dev-train-sony/fold3_room22_mix002.mp4"
+input_360_video_path = "/Users/rithikpothuganti/cs677/new-project/SoundQ/video_dev/video_dev/dev-test-sony/fold4_room23_mix001.mp4"
 
 rirs, source_coords = get_audio_spatial_data(aud_fmt="em32", room="METU")
-directory_path = "/scratch/ssd1/audio_datasets/MUSIC_dataset/data"
+directory_path = "/Users/rithikpothuganti/cs677/new-project/SoundQ/data/Dataset/Class_7_Door_Open_Close"
 overlay_video_paths = [os.path.join(directory_path, filename) for filename in os.listdir(directory_path) if os.path.isfile(os.path.join(directory_path, filename))]
+print(len(overlay_video_paths))
+overlay_video_paths = overlay_video_paths[:10]
 min_duration = 2  # Minimum duration for overlay videos (in seconds)
 max_duration = 3  # Maximum duration for overlay videos (in seconds)
-total_duration = 8
+total_duration = 10
 track_name = "fold1_room001_mix"  # File to save overlay info
 video_overlay = AudioVisualSynthesizer(input_360_video_path, rirs, source_coords, overlay_video_paths,
 							 min_duration, max_duration, total_duration)
