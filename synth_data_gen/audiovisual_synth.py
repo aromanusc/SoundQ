@@ -180,10 +180,15 @@ def double_video_length(video_path):
 
 def extend_clip(input_video_path):
     clip = VideoFileClip(input_video_path)	
-    if clip.duration >= 30:
+    duration = 30
+    cap = cv2.VideoCapture(input_video_path)
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    if fps == 24:
+        duration = 38
+    if clip.duration >= duration:
         return
 	
-    repeat_times = max(1, -(-30 // clip.duration))  # Ceiling division
+    repeat_times = max(1, -(-duration // clip.duration))  # Ceiling division
 
     clips = [clip] * int(repeat_times)
     final_clip = concatenate_videoclips(clips)
@@ -192,20 +197,10 @@ def extend_clip(input_video_path):
     final_clip.write_videofile(out_path, codec="libx264", audio_codec="aac")
     os.rename(out_path, input_video_path)
 
-    # Close the clips to release resources
     clip.close()
     final_clip.close()
     print(f"Video extended and saved to {input_video_path}")
 
-
-# Usage
-# video_path = "/Users/rithikpothuganti/cs677/new-project/SoundQ/data/Dataset/Class_7_Door_Open_Close/clip11.mp4"
-# # result = double_video_length(video_path)
-# clip = VideoFileClip(video_path).audio
-# print(clip.to_soundarray(fps=11025))
-print("updated version a")
-
-# Example usage:
 input_360_video_path = "/Users/rithikpothuganti/cs677/new-project/SoundQ/video_dev/video_dev/dev-test-sony"
 input_360_videos = [os.path.join(input_360_video_path, f) for f in os.listdir(input_360_video_path) if os.path.isfile(os.path.join(input_360_video_path, f))]
 print(input_360_videos)
@@ -220,10 +215,9 @@ print("test")
 
 overlay_video_paths = [item for item in overlay_video_paths if ".DS_Store" not in item]
 
-# for video in overlay_video_paths:
-#     extend_clip(video)
+for video in overlay_video_paths:
+    extend_clip(video)
 
-# overlay_video_path_groups = [overlay_video_paths[i:i + 3] for i in range(0, len(overlay_video_paths), 3)]
 
 
 min_duration = 2  # Minimum duration for overlay videos (in seconds)
@@ -237,32 +231,3 @@ for i in range(1, 51):
 	video_overlay = AudioVisualSynthesizer(input_360_video_path, rirs, source_coords, overlay_video_paths,
 							 min_duration, max_duration, total_duration)
 	video_overlay.generate_audiovisual_event(track_name)
-
-
-
-# track_name = "synthetic_video2"  # File to save overlay info
-# video_overlay = AudioVisualSynthesizer(input_360_video_path, rirs, source_coords, overlay_video_paths,
-# 							 min_duration, max_duration, total_duration)
-
-# print("Synthesizing spatial audiovisual event")
-# video_overlay.generate_audiovisual_event(track_name)
-
-
-
-# # Example usage:
-# input_360_video_path = "/Users/rithikpothuganti/cs677/new-project/SoundQ/video_dev/video_dev/dev-test-sony/fold4_room23_mix001.mp4"
-
-# rirs, source_coords = get_audio_spatial_data(aud_fmt="em32", room="METU")
-# directory_path = "/Users/rithikpothuganti/cs677/new-project/SoundQ/data/Dataset/Class_7_Door_Open_Close"
-# overlay_video_paths = [os.path.join(directory_path, filename) for filename in os.listdir(directory_path) if os.path.isfile(os.path.join(directory_path, filename))]
-# print(len(overlay_video_paths))
-# # overlay_video_paths = overlay_video_paths[:10]
-# min_duration = 2  # Minimum duration for overlay videos (in seconds)
-# max_duration = 3  # Maximum duration for overlay videos (in seconds)
-# total_duration = 10
-# track_name = "fold1_room001_mix"  # File to save overlay info
-# video_overlay = AudioVisualSynthesizer(input_360_video_path, rirs, source_coords, overlay_video_paths,
-# 							 min_duration, max_duration, total_duration)
-
-# print("Synthesizing spatial audiovisual event")
-# video_overlay.generate_audiovisual_event(track_name)
