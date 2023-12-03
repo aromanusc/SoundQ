@@ -33,8 +33,15 @@ class MetadataSynth:
 		# Load and store event information
 		self.event_info = []
 		for event_path in event_paths:
+			path_parts = event_path.split("/")
+			class_number = None
+			for part in path_parts:
+				if part.startswith("Class_") and part.count('_') >= 2:
+					class_number = part.split('_')[1]
+
 			self.event_info.append({
 				'path': event_path,
+				'class': class_number
 			})
 
 		self.metadata_file_csv = open(f'{self.timeline_name}.csv', 'w', newline='')
@@ -58,7 +65,10 @@ class MetadataSynth:
 			n_active = len(active_events) # get number of currently active events
 			for i in range(n_active, max_polyphony): 
 				if np.random.rand() < (max_polyphony-n_active)/(silence_weight+max_polyphony):
-					idxe, event_info = random.choice(list(enumerate(available_tacks)))
+					temp = list(enumerate(available_tacks))
+					if temp == []:
+						break
+					idxe, event_info = random.choice(temp)
 					available_tacks.pop(idxe)
 					# randomly choose duration for event and convert to FPS (*30)
 					choose_duration = self.get_event_duration(self.stream_format)
@@ -70,6 +80,7 @@ class MetadataSynth:
 					# populate event metadata
 					new_event = {
 						'path': event_info["path"],
+						'class': event_info["class"],
 						'trackidx': event_info["path"].split("/")[-1][:3], # TODO: here use instead another ideantifier??
 						'start_frame': frame_number,
 						'end_frame': frame_number+choose_duration,
@@ -111,5 +122,5 @@ class MetadataSynth:
 			active_events = [event_data for event_data in event_list if (iframe*frame_step >= event_data['start_frame'] and iframe*frame_step < event_data["end_frame"])]
 			if len(active_events) > 0:
 				for event in active_events:
-					self.metadata_writer.writerow([iframe,9,event["trackidx"],event["azim"],event["elev"], 0])
+					self.metadata_writer.writerow([iframe,event["class"],event["trackidx"],event["azim"],event["elev"], 0])
 		self.metadata_file.close()

@@ -8,7 +8,7 @@ import numpy as np
 from tqdm import tqdm
 import scipy
 import scipy.signal as signal
-from moviepy.editor import VideoFileClip
+from moviepy.editor import VideoFileClip, concatenate_videoclips
 
 from utils import *
 from audio_spatializer import *
@@ -75,12 +75,16 @@ class AudioVisualSynthesizer:
 					elevation_proj = (-1) * elevation + 90
 
 					overlay_video = cv2.VideoCapture(overlay_data['path'])
-					start_offset = 2 * 30 # start after the first two seconds of the video (usually when musicians setup)
-					overlay_frame = self.get_overlay_frame(overlay_video, iframe+start_offset)
+					overlay_frame = self.get_overlay_frame(overlay_video, iframe)
+					if overlay_frame is None:
+						print(overlay_data['path'], iframe)
+						print("none for some reason")
+						continue
 					overlay_frame = self.resize_overlay_frame(overlay_frame, 200, 200)
 					frame_360 = self.overlay_frame_on_360(frame_360, overlay_frame, azimuth_proj, elevation_proj)
 
 				pbar.update(1) # update progress bar
+
 				out_video.write(frame_360)
 
 		# Release video captures and writer
@@ -90,13 +94,14 @@ class AudioVisualSynthesizer:
 
 
 	def generate_audio_mix_spatialized(self, track_name):
+		# TODO
 		audio_mix = np.zeros((self.channel_num, self.audio_FS*self.total_duration), dtype=np.float64)
 		for event_data in self.events_history:
 			# Load the video file
 			video_clip = VideoFileClip(event_data['path'])
+			print(event_data['path'])
 			# Extract the audio
-			start_offset = 2 # start after the first two seconds of the video (usually when musicians setup)
-			audio_clip = video_clip.subclip(start_offset, event_data['duration']/self.video_fps + start_offset + 1).audio
+			audio_clip = video_clip.audio
 			audio_sr = audio_clip.fps
 			audio_sig = librosa.resample(audio_clip.to_soundarray().T, orig_sr=audio_sr, target_sr=self.audio_FS)
 			start_idx = int(self.audio_FS * event_data['start_frame']/self.video_fps)
@@ -111,7 +116,7 @@ class AudioVisualSynthesizer:
 		trim_samps = 256*21 # trim padding applied during the convolution process (constant independent of win_size or dur)
 		trim_dur = trim_samps/self.audio_FS # get duration in seconds for the padding section
 		dur_sec = dur_samps/self.audio_FS
-
+		print(dur_samps, trim_samps, type(eventsig))
 		eventsig = eventsig[:dur_samps+trim_samps]
 		dur_sec += trim_dur 
 
@@ -162,18 +167,65 @@ class AudioVisualSynthesizer:
 		return cv2.resize(overlay_frame, (width, height))
 
 
-# Example usage:
-input_360_video_path = "/scratch/data/audio-visual-seld-dcase2023/data_dcase2023_task3/video_dev/dev-train-sony/fold3_room22_mix002.mp4"
+
+def double_video_length(video_path):
+    clip = VideoFileClip(video_path)
+    if clip.duration < 2:
+        doubled_clip = concatenate_videoclips([clip, clip])
+        out_path = video_path.split(".")[0] + "_doubled.mp4"
+        doubled_clip.write_videofile(out_path, codec="libx264", fps=24)
+        os.rename(out_path, video_path)
+
+def extend_clip(input_video_path):
+    clip = VideoFileClip(input_video_path)	
+    duration = 30
+    cap = cv2.VideoCapture(input_video_path)
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    if fps == 24:
+        duration = 38
+    if clip.duration >= duration:
+        return
+	
+    repeat_times = max(1, -(-duration // clip.duration))  # Ceiling division
+
+    clips = [clip] * int(repeat_times)
+    final_clip = concatenate_videoclips(clips)
+
+    out_path = input_video_path.split(".")[0] + "_doubled." + input_video_path.split(".")[-1]
+    final_clip.write_videofile(out_path, codec="libx264", audio_codec="aac")
+    os.rename(out_path, input_video_path)
+
+    clip.close()
+    final_clip.close()
+    print(f"Video extended and saved to {input_video_path}")
+
+input_360_video_path = "/Users/rithikpothuganti/cs677/new-project/SoundQ/video_dev/video_dev/dev-test-sony"
+input_360_videos = [os.path.join(input_360_video_path, f) for f in os.listdir(input_360_video_path) if os.path.isfile(os.path.join(input_360_video_path, f))]
+print(input_360_videos)
 
 rirs, source_coords = get_audio_spatial_data(aud_fmt="em32", room="METU")
-directory_path = "/scratch/ssd1/audio_datasets/MUSIC_dataset/data"
-overlay_video_paths = [os.path.join(directory_path, filename) for filename in os.listdir(directory_path) if os.path.isfile(os.path.join(directory_path, filename))]
-min_duration = 2  # Minimum duration for overlay videos (in seconds)
-max_duration = 3  # Maximum duration for overlay videos (in seconds)
-total_duration = 8
-track_name = "fold1_room001_mix"  # File to save overlay info
-video_overlay = AudioVisualSynthesizer(input_360_video_path, rirs, source_coords, overlay_video_paths,
-							 min_duration, max_duration, total_duration)
+directory =  "/Users/rithikpothuganti/cs677/new-project/SoundQ/data/Dataset/"
+overlay_video_paths = []
+for root, dirs, files in os.walk(directory):
+    for file in files:
+        overlay_video_paths.append(os.path.join(root, file))
+print("test")
 
-print("Synthesizing spatial audiovisual event")
-video_overlay.generate_audiovisual_event(track_name)
+overlay_video_paths = [item for item in overlay_video_paths if ".DS_Store" not in item]
+
+for video in overlay_video_paths:
+    extend_clip(video)
+
+
+
+min_duration = 2  # Minimum duration for overlay videos (in seconds)
+max_duration = 4  # Maximum duration for overlay videos (in seconds)
+total_duration = 30
+
+for i in range(1, 51):
+	random.shuffle(overlay_video_paths)
+	track_name = f'synth_video{i}'  # File to save overlay info
+	input_360_video_path = random.choice(input_360_videos)
+	video_overlay = AudioVisualSynthesizer(input_360_video_path, rirs, source_coords, overlay_video_paths,
+							min_duration, max_duration, total_duration)
+	video_overlay.generate_audiovisual_event(track_name)
