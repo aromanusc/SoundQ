@@ -18,14 +18,12 @@ class AudioVisualSynthesizer:
 	def __init__(self, input_360_video_path, rirs, source_coords, overlay_video_paths, min_duration, max_duration, total_duration=None):
 		self.input_360_video_path = input_360_video_path
 		self.rirs = rirs # room_impulse responses used for audio spatialization
-		# TODO
 		self.channel_num = self.rirs[0].shape[1] # channel count in mic array
 		self.source_coords = source_coords
 		self.overlay_video_paths = overlay_video_paths
 		self.min_duration = min_duration
 		self.max_duration = max_duration
 		self.total_duration = total_duration
-		# TODO
 		self.channel_num = self.rirs[0].shape[1] # channel count in array
 
 		self.video_fps = 30		# 33.333 ms
@@ -115,7 +113,7 @@ class AudioVisualSynthesizer:
 
 
 	def spatialize_audio_event(self, eventsig, rir_idxs, dur_samps):
-		trim_samps = 0 # trim padding applied during the convolution process (constant independent of win_size or dur)
+		trim_samps = 256*21 # trim padding applied during the convolution process (constant independent of win_size or dur)
 		trim_dur = trim_samps/self.audio_FS # get duration in seconds for the padding section
 		dur_sec = dur_samps/self.audio_FS
 		print(dur_samps, trim_samps, type(eventsig))
@@ -229,5 +227,5 @@ for i in range(1, 51):
 	track_name = f'synth_video{i}'  # File to save overlay info
 	input_360_video_path = random.choice(input_360_videos)
 	video_overlay = AudioVisualSynthesizer(input_360_video_path, rirs, source_coords, overlay_video_paths,
-							 min_duration, max_duration, total_duration)
+							min_duration, max_duration, total_duration)
 	video_overlay.generate_audiovisual_event(track_name)
