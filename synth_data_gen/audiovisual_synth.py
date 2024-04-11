@@ -56,9 +56,9 @@ class AudioVisualSynthesizer:
 		self.events_history = metadata_synth.gen_metadata() 
 
 	def generate_audiovisual_event(self, mix_name):
-		self.generate_track_metadata(mix_name)
-		self.generate_video_mix_360(mix_name)
-		self.generate_audio_mix_spatialized(mix_name)
+		self.generate_track_metadata(os.path.join("output/metadata/", mix_name))
+		self.generate_video_mix_360(os.path.join("output/video/", mix_name))
+		self.generate_audio_mix_spatialized(os.path.join("output/audio/", mix_name))
 
 	def generate_video_mix_360(self, mix_name):
 		# Create VideoWriter for the output video
@@ -94,7 +94,6 @@ class AudioVisualSynthesizer:
 
 
 	def generate_audio_mix_spatialized(self, track_name):
-		# TODO
 		audio_mix = np.zeros((self.channel_num, self.audio_FS*self.total_duration), dtype=np.float64)
 		for event_data in self.events_history:
 			# Load the video file
@@ -176,6 +175,7 @@ def double_video_length(video_path):
         doubled_clip.write_videofile(out_path, codec="libx264", fps=24)
         os.rename(out_path, video_path)
 
+
 def extend_clip(input_video_path):
     clip = VideoFileClip(input_video_path)	
     duration = 30
@@ -199,32 +199,33 @@ def extend_clip(input_video_path):
     final_clip.close()
     print(f"Video extended and saved to {input_video_path}")
 
-input_360_video_path = "/Users/rithikpothuganti/cs677/new-project/SoundQ/video_dev/video_dev/dev-test-sony"
+# A collection of 360 videos to use as a canvas. Default condition is to make them all black to have a black canvas.
+input_360_video_path = "/scratch/data/audio-visual-seld-dcase2023/data_dcase2023_task3/video_dev/dev-train-tau-aug-acs"
 input_360_videos = [os.path.join(input_360_video_path, f) for f in os.listdir(input_360_video_path) if os.path.isfile(os.path.join(input_360_video_path, f))]
-print(input_360_videos)
 
+# A directory containing all video assets by event class (shared a sample in drive, see readme)
 rirs, source_coords = get_audio_spatial_data(aud_fmt="em32", room="METU")
-directory =  "/Users/rithikpothuganti/cs677/new-project/SoundQ/data/Dataset/"
+video_assets_dir =  "/scratch/ssd1/audiovisual_datasets/class_events"
 overlay_video_paths = []
-for root, dirs, files in os.walk(directory):
+for root, dirs, files in os.walk(video_assets_dir):
     for file in files:
         overlay_video_paths.append(os.path.join(root, file))
-print("test")
 
-overlay_video_paths = [item for item in overlay_video_paths if ".DS_Store" not in item]
+# Initialize directoies:
 
-for video in overlay_video_paths:
-    extend_clip(video)
-
-
+os.makedirs("./output", exist_ok=True)
+os.makedirs("./output/audio", exist_ok=True)  
+os.makedirs("./output/video", exist_ok=True)  
+os.makedirs("./output/metadata", exist_ok=True)  
 
 min_duration = 2  # Minimum duration for overlay videos (in seconds)
 max_duration = 4  # Maximum duration for overlay videos (in seconds)
 total_duration = 30
 
-for i in range(1, 51):
+for i in range(98, 120):
+	overlay_video_paths = [item for item in overlay_video_paths if ".DS_Store" not in item]
 	random.shuffle(overlay_video_paths)
-	track_name = f'synth_video{i}'  # File to save overlay info
+	track_name = f'fold6_roomMETU_mix{i:03d}'.format(i)  # File to save overlay info
 	input_360_video_path = random.choice(input_360_videos)
 	video_overlay = AudioVisualSynthesizer(input_360_video_path, rirs, source_coords, overlay_video_paths,
 							min_duration, max_duration, total_duration)

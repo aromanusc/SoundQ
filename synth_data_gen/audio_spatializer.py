@@ -7,36 +7,37 @@ import soundfile as sf
 from utils import *
 
 def get_audio_spatial_data(aud_fmt="em32", room="METU"):
-	assert aud_fmt == "em32" or aud_fmt == "mic", "You must provide a valid microphone name: em32, mic"
+    assert aud_fmt == "em32" or aud_fmt == "mic", "You must provide a valid microphone name: em32, mic"
 
-	metu_db_dir = None
-	if room == "METU":
-		metu_db_dir = "/scratch/data/RIR_datasets/spargair/em32/"
-	top_height = 5
-	mic_xyz = get_mic_xyz()
-	source_coords, rirs = [], []
+    metu_db_dir = None
+    if room == "METU":
+        metu_db_dir = "/scratch/ssd1/RIR_datasets/spargair/em32/"
+    top_height = 5
+    mic_xyz = get_mic_xyz()
+    source_coords, rirs = [], []
 
-	rir_id = 0
-	# Outter trayectory: bottom to top
-	for height in range(0, top_height):
-		for num in REF_OUT_TRAJ:
-			# Coords computed based on documentation.pdf from METU Sparg
-			x = (3 - int(num[0])) * 0.5
-			y = (3 - int(num[1])) * 0.5
-			z = (2 - (int(num[2])-height)) * 0.3 + 1.5
-			source_xyz = [x, y, z] # note -1 since METU is flipped up-side-down
+    rir_id = 0
+    # Outter trayectory: bottom to top
+    for height in range(0, top_height):
+        for num in REF_OUT_TRAJ:
+            # Coords computed based on documentation.pdf from METU Sparg
+            x = (3 - int(num[0])) * 0.5
+            y = (3 - int(num[1])) * 0.5
+            z = (2 - (int(num[2])-height)) * 0.3 + 1.5
+            source_xyz = [x, y, z] # note -1 since METU is flipped up-side-down
 
-			azim, elev, _ = az_ele_from_source(mic_xyz, source_xyz)
-			elev *= -1 # Account for elevation being swapped in METU
+            azim, elev, _ = az_ele_from_source(mic_xyz, source_xyz)
+            elev *= -1 # Account for elevation being swapped in METU
 
-			source_coords.append((rir_id, azim, elev))
-			rir_name = num[0] + num[1] + str(int(num[2])-height)
-			ir_path = os.path.join(metu_db_dir, rir_name, f"IR_{aud_fmt}.wav")
-			irdata, sr = librosa.load(ir_path, mono=False, sr=48000)
-			irdata_resamp = librosa.resample(irdata, orig_sr=sr, target_sr=24000)
-			rirs.append(irdata_resamp.T)
-			rir_id += 1
-	return rirs, source_coords
+            source_coords.append((rir_id, azim, elev))
+            rir_name = num[0] + num[1] + str(int(num[2])-height)
+            ir_path = os.path.join(metu_db_dir, rir_name, f"IR_{aud_fmt}.wav")
+            irdata, sr = librosa.load(ir_path, mono=False, sr=48000)
+            irdata_resamp = librosa.resample(irdata, orig_sr=sr, target_sr=24000)
+            irdata_resamp *= 0.3
+            rirs.append(irdata_resamp.T)
+            rir_id += 1
+    return rirs, source_coords
 
 # Function borrowed from the DCASE22 data generator: https://github.com/danielkrause/DCASE2022-data-generator
 def stft_ham(insig, winsize=256, fftsize=512, hopsize=128):
