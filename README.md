@@ -1,4 +1,4 @@
-# SoundQ
+# SoundQ — Enhanced sound event localization and detection in real 360-degree audio-visual soundscapes.
 
 ## Features
 
