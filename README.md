@@ -31,3 +31,15 @@ The following table includes only the best performing system (as documented in [
 | **AV SELDNet23 (ours)** | Ambisonic\* + Video | 0.65 | 24.9 % | 18.7&deg; | 37.5 % |
 
 Legend: AO=audio-only, AV=audio-visual, FOA=first order ambisonics format, \*=FOA + Multi-ACCDOA
+
+## Citation
+
+If you find our work useful, please cite our paper:
+```
+@article{roman2024enhanced,
+  title={Enhanced Sound Event Localization and Detection in Real 360-degree audio-visual soundscapes},
+  author={Roman, Adrian S and Balamurugan, Baladithya and Pothuganti, Rithik},
+  journal={arXiv preprint arXiv:2401.17129},
+  year={2024}
+}
+```
