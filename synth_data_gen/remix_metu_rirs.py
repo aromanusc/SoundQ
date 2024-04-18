@@ -1,37 +1,39 @@
+
 import os
-import subprocess
+import argparse
 
-# Source directory containing subdirectories with audio files
-source_directory = "./path/to/METU"
-aud_fmt = "em32" # em32
+METU_PATH = "/mnt/ssdt7/RIR-datasets/spargair/em32"
 
-# Iterate through each subdirectory
-for subdir in os.listdir(source_directory):
-    subdir_path = os.path.join(source_directory, subdir)
-    
-    # Check if it's a directory
-    if os.path.isdir(subdir_path):
-        # List all the audio files in the subdirectory
-        audio_files = sorted([
-            os.path.join(subdir_path, file) 
-            for file in os.listdir(subdir_path) 
-            if file.endswith(".wav")
-        ])
-        audio_files = audio_files[:32]
-        # Ensure there are 32 audio files
-        if len(audio_files) == 32:
-            # Prepare the command to merge audio files
-            merge_command = ["sox"] + ["-M"] + audio_files + [os.path.join(subdir, f"IR_{aud_fmt}.wav")]
-            print(merge_command)
-            # Execute the command
-            subprocess.run(merge_command)
-
-            print(f"Merged files for {subdir}")
-
-        else:
-            print(f"Not enough audio files in {subdir}")
-
+def main():
+    parser = argparse.ArgumentParser(description='Description of your program')
+    parser.add_argument('microphone', type=str, help='Name of the microphone type to be processed: em32, mic')
+    args = parser.parse_args()
+    microphone = args.microphone
+    mic_nch = 32
+    if microphone == "em32":
+        process_channels = [i for i in range(1, mic_nch+1)]
+    elif microphone == "mic":
+        process_channels = [6, 10, 26, 22]
     else:
-        print(f"{subdir} is not a directory")
+        parser.error("You must provide a valid microphone name: em32, mic")
 
-print("All files merged successfully.")
+    outter_trayectory_bottom = ["034", "024", "014", "004", "104", "204",
+                                "304", "404", "504", "604", "614", "624",
+                                "634", "644", "654", "664", "564", "464",
+                                "364", "264", "164", "064", "054", "044"]
+    top_height = 5
+    for height in range(0, top_height): # loop through heights
+        for num in outter_trayectory_bottom:
+            # Impulse Reponse to be processed
+            rir_name = num[0] + num[1] + str(int(num[2])-height)
+            # Load the 32 eigenmike IR wavefiles and merge into a multi-channel file
+            cmd_mix_all_ch = ""
+            for ch_idx in process_channels:
+                cmd_mix_all_ch += f' {os.path.join(METU_PATH, rir_name)}/IR{ch_idx:05}.wav '
+            # SoX -M to merge 32 into multi-channel signal
+            ir_path = os.path.join(METU_PATH, rir_name, f"IR_{microphone}.wav")
+            print("generating", ir_path)
+            os.system(f'sox -M {cmd_mix_all_ch} {ir_path}')
+
+if __name__ == '__main__':
+    main()  
