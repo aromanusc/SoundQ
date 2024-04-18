@@ -12,6 +12,12 @@ The RIRs are given as separate wavefiles for each of the 32 channels in the mic 
 
 ## 4 - Execute audiovisual synthetic data generator
 
+### Mic format
 ```
-python audiovisual_synth.py
+python audiovisual_synth.py mic
+```
+
+### EM32 format
+```
+python audiovisual_synth.py em32
 ```
