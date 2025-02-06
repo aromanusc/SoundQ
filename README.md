@@ -1,5 +1,12 @@
 # SoundQ — Enhanced sound event localization and detection in real 360-degree audio-visual soundscapes.
 
+This repo provides the code for the paper: "Enhanced sound event localization and detection in real 360-degree audio-visual soundscapes."
+
+[![Platform](https://img.shields.io/badge/Platform-linux-lightgrey?logo=linux)](https://www.linux.org/)
+[![Python](https://img.shields.io/badge/Python-3.8%2B-orange?logo=python)](https://www.python.org/)	
+[![arXiv](https://img.shields.io/badge/Arxiv-2401.03497-blueviolet?logo=arxiv)](https://arxiv.org/pdf/2401.17129)
+[![CC BY 4.0](https://img.shields.io/badge/License-CC%20BY%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by/4.0/)
+
 ## Features
 
 - An audio-visual synthetic data generator with spatial audio and 360-degree video. 
