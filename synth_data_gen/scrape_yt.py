@@ -161,7 +161,5 @@ def main():
     df.to_csv(detailed_output, index=False)
     print(f"Saved detailed results to {detailed_output}")
 
-# AIzaSyAPNRtz_PHfKny-enacMb_GWmQJBGea4Kk
-
 if __name__ == "__main__":
     main()

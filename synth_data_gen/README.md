@@ -66,6 +66,14 @@ The script will create two files:
 - A CSV file with just the link, start, end, and class (matching your format)
 - A detailed CSV that includes video titles and descriptions
 
+#### Data download
+
+Run the download script pointing to your generated YT csv file
+
+```
+python download.py
+```
+
 ## 4 - Execute audiovisual synthetic data generator
 
 ### Mic format
