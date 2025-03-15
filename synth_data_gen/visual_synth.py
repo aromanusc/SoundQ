@@ -14,7 +14,7 @@ from collections import defaultdict
 from utils import *
 from audio_spatializer import *
 
-class AudioVisualSynthesizer:
+class VisualSynthesizer:
     def __init__(self, input_360_video_path, overlay_video_paths_by_class, total_duration=None):
         self.input_360_video_path = input_360_video_path
         self.overlay_video_paths_by_class = overlay_video_paths_by_class  # Dictionary mapping class indices to lists of video paths
@@ -36,72 +36,76 @@ class AudioVisualSynthesizer:
     def load_predefined_metadata(self, metadata_path):
         """
         Load pre-defined metadata from a CSV file.
-        
         The CSV format should be:
         frame_number,class_index,source_index,azimuth,elevation,distance
         """
         metadata_by_frame = defaultdict(list)
         source_tracks = {}  # Track source durations and paths
-        
+    
         with open(metadata_path, 'r') as f:
             csv_reader = csv.reader(f)
             for row in csv_reader:
                 if len(row) < 5:  # Ensure we have all needed fields
                     continue
-                    
-                frame_number = int(row[0])
+                
+                # Scale frame number to 30fps
+                frame_number_30fps = int(row[0]) * 3  # Convert 100ms-frame to 30fps-frame
                 class_index = int(row[1])
                 source_index = int(row[2])
                 azimuth = int(row[3])
                 elevation = int(row[4])
                 distance = int(row[5])
-                
-                # Check if the source exists in our tracking dictionary
-                source_id = f"{class_index}_{source_index}"
-                if source_id not in source_tracks:
-                    # Assign a random video path from the class
-                    if str(class_index) in self.overlay_video_paths_by_class:
-                        video_paths = self.overlay_video_paths_by_class[str(class_index)]
-                        if video_paths:
-                            source_tracks[source_id] = {
-                                'path': random.choice(video_paths),
-                                'start_frame': frame_number,
-                                'frames': [frame_number],
-                                'azimuth_history': {frame_number: azimuth},
-                                'elevation_history': {frame_number: elevation},
-                                'distance_history': {frame_number: distance},
-                                'class': str(class_index)
-                            }
+            
+                for frame_number in range(frame_number_30fps, frame_number_30fps+3):
+                    # Check if the source exists in our tracking dictionary
+                    source_id = f"{class_index}_{source_index}"
+                    if source_id not in source_tracks:
+                        # Assign a random video path from the class
+                        if str(class_index) in self.overlay_video_paths_by_class:
+                            video_paths = self.overlay_video_paths_by_class[str(class_index)]
+                            if video_paths:
+                                source_tracks[source_id] = {
+                                    'path': random.choice(video_paths),
+                                    'start_frame': frame_number,
+                                    'frames': [frame_number],
+                                    'azimuth_history': {frame_number: azimuth},
+                                    'elevation_history': {frame_number: elevation},
+                                    'distance_history': {frame_number: distance},
+                                    'class': str(class_index)
+                                }
+                            else:
+                                print(f"Warning: No video paths available for class {class_index}")
+                                continue
                         else:
-                            print(f"Warning: No video paths available for class {class_index}")
+                            print(f"Warning: Class {class_index} not found in video paths")
                             continue
                     else:
-                        print(f"Warning: Class {class_index} not found in video paths")
-                        continue
-                else:
-                    # Update the existing source track with new frame and coordinates
-                    source_tracks[source_id]['frames'].append(frame_number)
-                    source_tracks[source_id]['azimuth_history'][frame_number] = azimuth
-                    source_tracks[source_id]['elevation_history'][frame_number] = elevation
-                    source_tracks[source_id]['distance_history'][frame_number] = distance
-                    
-                # Add the event to the frame metadata in video
-                metadata_by_frame[frame_number].append({
-                    'source_id': source_id,
-                    'class': str(class_index),
-                    'azimuth': azimuth,
-                    'elevation': elevation,
-                    'distance': distance
-                })
+                        # Update the existing source track with new frame and coordinates
+                        source_tracks[source_id]['frames'].append(frame_number)
+                        source_tracks[source_id]['azimuth_history'][frame_number] = azimuth
+                        source_tracks[source_id]['elevation_history'][frame_number] = elevation
+                        source_tracks[source_id]['distance_history'][frame_number] = distance
+                
+                    # Add the event to the frame metadata in video
+                    metadata_by_frame[frame_number].append({
+                        'source_id': source_id,
+                        'class': str(class_index),
+                        'azimuth': azimuth,
+                        'elevation': elevation,
+                        'distance': distance
+                    })
 
+        events_history = self.get_events_history(source_tracks)
+        return events_history, metadata_by_frame
+
+
+    def get_events_history(self, source_tracks):
         # Process source tracks to determine start_frame, end_frame, and duration
         events_history = []
         for source_id, track_data in source_tracks.items():
             sorted_frames = sorted(track_data['frames'])
             start_frame = (sorted_frames[0]) 
             end_frame = (sorted_frames[-1] + 1)  # Add 1 since events end after the last frame
-            print("start and end frame", start_frame, end_frame)
-            
             events_history.append({
                 'path': track_data['path'],
                 'class': track_data['class'],
@@ -113,13 +117,15 @@ class AudioVisualSynthesizer:
                 'elevation_history': track_data['elevation_history'],
                 'distance_history': track_data['distance_history']
             })
-        
-        return events_history, metadata_by_frame
+
+        return events_history
+
 
     def generate_audiovisual_event_from_metadata(self, metadata_path, mix_name):
         """Generate audiovisual content using pre-defined metadata"""
         self.events_history, self.metadata_by_frame = self.load_predefined_metadata(metadata_path)
         self.generate_video_mix_360(os.path.join("output/video/", mix_name))
+
 
     def generate_video_mix_360(self, mix_name):
         # Create VideoWriter for the output video
@@ -171,6 +177,7 @@ class AudioVisualSynthesizer:
         out_video.release()
         cv2.destroyAllWindows()
 
+
     def get_frame_at_frame_number(self, frame_number, dark_background=True):
         frame_count = int(self.cap_360.get(cv2.CAP_PROP_FRAME_COUNT))
         if frame_count <= 0:
@@ -192,6 +199,7 @@ class AudioVisualSynthesizer:
             
         return frame
 
+
     def get_overlay_frame(self, overlay_video, frame_number):
         total_frames = int(overlay_video.get(cv2.CAP_PROP_FRAME_COUNT))
         if total_frames == 0:
@@ -203,6 +211,7 @@ class AudioVisualSynthesizer:
         if not ret_overlay:
             return None
         return overlay_frame
+
 
     def overlay_frame_on_360(self, frame_360, overlay_frame, azimuth, elevation):
         overlay_height, overlay_width, _ = overlay_frame.shape
@@ -216,6 +225,7 @@ class AudioVisualSynthesizer:
         frame_360[y:y + overlay_height, x:x + overlay_width] = overlay_frame
 
         return frame_360
+
 
     def resize_overlay_frame(self, overlay_frame, width, height):
         return cv2.resize(overlay_frame, (width, height))
@@ -289,25 +299,17 @@ input_360_video_path = "/scratch/data/audio-visual-seld-dcase2023/data_dcase2023
 input_360_videos = [os.path.join(input_360_video_path, f) for f in os.listdir(input_360_video_path) if os.path.isfile(os.path.join(input_360_video_path, f))]
 
 # A directory containing all video assets by event class (shared a sample in drive, see readme)
-rirs, source_coords = get_audio_spatial_data(aud_fmt="em32", room="METU")
 video_assets_dir =  "/scratch/ssd1/audiovisual_datasets/class_events"
-overlay_video_paths = create_video_paths_dictionary(video_assets_dir)
-
-#for root, dirs, files in os.walk(video_assets_dir):
-#    for file in files:
-#        overlay_video_paths.append(os.path.join(root, file))
+overlay_video_paths_by_class = create_video_paths_dictionary(video_assets_dir)
 
 # Initialize directoies:
-
 os.makedirs("./output", exist_ok=True)
-os.makedirs("./output/audio", exist_ok=True)  
 os.makedirs("./output/video", exist_ok=True)  
-os.makedirs("./output/metadata", exist_ok=True)  
 
 metadata_path = "metadata_dev/dev-test-sony/fold4_room23_mix001.csv" 
 
 for i in range(0, 1):
 	track_name = f'fold6_roomMETU_mix{i:03d}'.format(i)  # File to save overlay info
 	input_360_video_path = random.choice(input_360_videos)
-	video_overlay = AudioVisualSynthesizer(input_360_video_path, overlay_video_paths)
+	video_overlay = VisualSynthesizer(input_360_video_path, overlay_video_paths_by_class)
 	video_overlay.generate_audiovisual_event_from_metadata(metadata_path, track_name)
