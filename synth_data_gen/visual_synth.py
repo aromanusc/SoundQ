@@ -15,27 +15,23 @@ from utils import *
 from audio_spatializer import *
 
 class AudioVisualSynthesizer:
-    def __init__(self, input_360_video_path, rirs, overlay_video_paths_by_class, total_duration=None):
+    def __init__(self, input_360_video_path, overlay_video_paths_by_class, total_duration=None):
         self.input_360_video_path = input_360_video_path
-        self.rirs = rirs  # room_impulse responses used for audio spatialization
-        self.channel_num = self.rirs[0].shape[1]  # channel count in mic array
         self.overlay_video_paths_by_class = overlay_video_paths_by_class  # Dictionary mapping class indices to lists of video paths
         self.total_duration = total_duration
 
         self.video_fps = 30      # 30 fps
-        self.audio_fps = 10      # 10 fps
         self.audio_FS = 24000    # sampling rate (24kHz)
-        self.win_size = 512      # window size for spatial convolutions
 
         # Open the 360-degree video
         self.cap_360 = cv2.VideoCapture(input_360_video_path)
         self.frame_width = int(self.cap_360.get(3))
         self.frame_height = int(self.cap_360.get(4))
         
-        if self.total_duration is not None:
-            self.stream_total_frames = int(self.total_duration * self.video_fps)  # Calculate total frames based on total_duration
-        else:
+        if self.total_duration:
             self.stream_total_frames = int(self.cap_360.get(cv2.CAP_PROP_FRAME_COUNT))  # Use original video's length
+        else:
+            self.stream_total_frames = None
 
     def load_predefined_metadata(self, metadata_path):
         """
@@ -50,7 +46,7 @@ class AudioVisualSynthesizer:
         with open(metadata_path, 'r') as f:
             csv_reader = csv.reader(f)
             for row in csv_reader:
-                if len(row) < 6:  # Ensure we have all needed fields
+                if len(row) < 5:  # Ensure we have all needed fields
                     continue
                     
                 frame_number = int(row[0])
@@ -89,7 +85,7 @@ class AudioVisualSynthesizer:
                     source_tracks[source_id]['elevation_history'][frame_number] = elevation
                     source_tracks[source_id]['distance_history'][frame_number] = distance
                     
-                # Add the event to the frame metadata
+                # Add the event to the frame metadata in video
                 metadata_by_frame[frame_number].append({
                     'source_id': source_id,
                     'class': str(class_index),
@@ -97,13 +93,14 @@ class AudioVisualSynthesizer:
                     'elevation': elevation,
                     'distance': distance
                 })
-        
+
         # Process source tracks to determine start_frame, end_frame, and duration
         events_history = []
         for source_id, track_data in source_tracks.items():
             sorted_frames = sorted(track_data['frames'])
-            start_frame = sorted_frames[0]
-            end_frame = sorted_frames[-1] + 1  # Add 1 since events end after the last frame
+            start_frame = (sorted_frames[0]) 
+            end_frame = (sorted_frames[-1] + 1)  # Add 1 since events end after the last frame
+            print("start and end frame", start_frame, end_frame)
             
             events_history.append({
                 'path': track_data['path'],
@@ -130,7 +127,7 @@ class AudioVisualSynthesizer:
         out_video = cv2.VideoWriter(f'{mix_name}.mp4', fourcc, self.video_fps, (self.frame_width, self.frame_height))
         
         # Find the maximum frame from metadata
-        max_frame = max(max(self.metadata_by_frame.keys()) if self.metadata_by_frame else 0, self.stream_total_frames)
+        max_frame = max(max(self.metadata_by_frame.keys()) if self.metadata_by_frame else 0, self.stream_total_frames if self.stream_total_frames else 0)
         with tqdm(total=max_frame) as pbar:
             for iframe in range(max_frame):
                 frame_360 = self.get_frame_at_frame_number(iframe)  # get background to video to overlay events on
@@ -207,22 +204,51 @@ class AudioVisualSynthesizer:
             return None
         return overlay_frame
 
-	def overlay_frame_on_360(self, frame_360, overlay_frame, azimuth, elevation):
-		overlay_height, overlay_width, _ = overlay_frame.shape
+    def overlay_frame_on_360(self, frame_360, overlay_frame, azimuth, elevation):
+        overlay_height, overlay_width, _ = overlay_frame.shape
 
-		x = int((azimuth / 360.0) * self.frame_width)
-		y = int((elevation / 180.0) * self.frame_height)
+        x = int((azimuth / 360.0) * self.frame_width)
+        y = int((elevation / 180.0) * self.frame_height)
 
-		x = max(0, min(x, self.frame_width - overlay_width))
-		y = max(0, min(y, self.frame_height - overlay_height))
+        x = max(0, min(x, self.frame_width - overlay_width))
+        y = max(0, min(y, self.frame_height - overlay_height))
 
-		frame_360[y:y + overlay_height, x:x + overlay_width] = overlay_frame
+        frame_360[y:y + overlay_height, x:x + overlay_width] = overlay_frame
 
-		return frame_360
+        return frame_360
 
-	def resize_overlay_frame(self, overlay_frame, width, height):
-		return cv2.resize(overlay_frame, (width, height))
+    def resize_overlay_frame(self, overlay_frame, width, height):
+        return cv2.resize(overlay_frame, (width, height))
 
+
+def create_video_paths_dictionary(root_directory):
+    """
+    Creates a dictionary where keys are class numbers (as strings) and values are lists of
+    paths to .mp4 files in the corresponding class subdirectory.
+    
+    Args:
+        root_directory (str): Path to the root directory containing class subdirectories
+        
+    Returns:
+        dict: Dictionary mapping class numbers to lists of .mp4 file paths
+    """
+    video_paths_by_class = {}
+    # Get all subdirectories in the root directory
+    subdirectories = [d for d in os.listdir(root_directory) if os.path.isdir(os.path.join(root_directory, d))]
+    # Process each subdirectory
+    for subdir in subdirectories:
+        # Extract class number using regex
+        class_num = subdir.split("_")[1]
+        # Initialize an empty list for this class if it doesn't exist
+        if class_num not in video_paths_by_class:
+            video_paths_by_class[class_num] = []
+        # Get all .mp4 files in this subdirectory
+        subdir_path = os.path.join(root_directory, subdir)
+        mp4_files = [os.path.join(subdir_path, f) for f in os.listdir(subdir_path) 
+                     if f.endswith('.mp4') and os.path.isfile(os.path.join(subdir_path, f))]
+        # Add all .mp4 files to the list for this class
+        video_paths_by_class[class_num].extend(mp4_files)
+    return video_paths_by_class
 
 
 def double_video_length(video_path):
@@ -256,3 +282,32 @@ def extend_clip(input_video_path):
     clip.close()
     final_clip.close()
     print(f"Video extended and saved to {input_video_path}")
+
+
+# A collection of 360 videos to use as a canvas. Default condition is to make them all black to have a black canvas.
+input_360_video_path = "/scratch/data/audio-visual-seld-dcase2023/data_dcase2023_task3/video_dev/dev-train-tau-aug-acs"
+input_360_videos = [os.path.join(input_360_video_path, f) for f in os.listdir(input_360_video_path) if os.path.isfile(os.path.join(input_360_video_path, f))]
+
+# A directory containing all video assets by event class (shared a sample in drive, see readme)
+rirs, source_coords = get_audio_spatial_data(aud_fmt="em32", room="METU")
+video_assets_dir =  "/scratch/ssd1/audiovisual_datasets/class_events"
+overlay_video_paths = create_video_paths_dictionary(video_assets_dir)
+
+#for root, dirs, files in os.walk(video_assets_dir):
+#    for file in files:
+#        overlay_video_paths.append(os.path.join(root, file))
+
+# Initialize directoies:
+
+os.makedirs("./output", exist_ok=True)
+os.makedirs("./output/audio", exist_ok=True)  
+os.makedirs("./output/video", exist_ok=True)  
+os.makedirs("./output/metadata", exist_ok=True)  
+
+metadata_path = "metadata_dev/dev-test-sony/fold4_room23_mix001.csv" 
+
+for i in range(0, 1):
+	track_name = f'fold6_roomMETU_mix{i:03d}'.format(i)  # File to save overlay info
+	input_360_video_path = random.choice(input_360_videos)
+	video_overlay = AudioVisualSynthesizer(input_360_video_path, overlay_video_paths)
+	video_overlay.generate_audiovisual_event_from_metadata(metadata_path, track_name)
