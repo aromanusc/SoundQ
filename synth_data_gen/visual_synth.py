@@ -17,17 +17,14 @@ from audio_spatializer import *
 class VisualSynthesizer:
     def __init__(self, input_360_video_path, overlay_video_paths_by_class, total_duration=None):
         self.input_360_video_path = input_360_video_path
-        self.overlay_video_paths_by_class = overlay_video_paths_by_class  # Dictionary mapping class indices to lists of video paths
+        self.overlay_video_paths_by_class = overlay_video_paths_by_class  # Dictionary mapping class indices to lists of videos
         self.total_duration = total_duration
-
         self.video_fps = 30      # 30 fps
         self.audio_FS = 24000    # sampling rate (24kHz)
-
         # Open the 360-degree video
         self.cap_360 = cv2.VideoCapture(input_360_video_path)
         self.frame_width = int(self.cap_360.get(3))
         self.frame_height = int(self.cap_360.get(4))
-        
         if self.total_duration:
             self.stream_total_frames = int(self.cap_360.get(cv2.CAP_PROP_FRAME_COUNT))  # Use original video's length
         else:
@@ -45,8 +42,8 @@ class VisualSynthesizer:
         with open(metadata_path, 'r') as f:
             csv_reader = csv.reader(f)
             for row in csv_reader:
-                if len(row) < 5:  # Ensure we have all needed fields
-                    continue
+                if len(row) <= 5:
+                    raise Exception("Ensure the csv metadata has all needed fields")
                 
                 # Scale frame number to 30fps
                 frame_number_30fps = int(row[0]) * 3  # Convert 100ms-frame to 30fps-frame
@@ -100,7 +97,7 @@ class VisualSynthesizer:
 
 
     def get_events_history(self, source_tracks):
-        # Process source tracks to determine start_frame, end_frame, and duration
+        """Process source tracks to determine start_frame, end_frame, and duration"""
         events_history = []
         for source_id, track_data in source_tracks.items():
             sorted_frames = sorted(track_data['frames'])
@@ -128,7 +125,7 @@ class VisualSynthesizer:
 
 
     def generate_video_mix_360(self, mix_name):
-        # Create VideoWriter for the output video
+        """Create VideoWriter for the output video"""
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
         out_video = cv2.VideoWriter(f'{mix_name}.mp4', fourcc, self.video_fps, (self.frame_width, self.frame_height))
         
