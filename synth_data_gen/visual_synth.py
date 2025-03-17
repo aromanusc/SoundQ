@@ -2,27 +2,30 @@ import os
 import cv2
 import csv
 import random
-import librosa
-import soundfile as sf
 import numpy as np
 from tqdm import tqdm
-import scipy
-import scipy.signal as signal
 from moviepy.editor import VideoFileClip, concatenate_videoclips
 from collections import defaultdict
+
+import yaml
+import argparse
+import glob
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
 from utils import *
 from audio_spatializer import *
 
 
 class VisualSynthesizer:
-    def __init__(self, input_360_video_path, overlay_video_paths_by_class, overlay_image_paths_by_class=None, total_duration=None):
+    def __init__(self, input_360_video_path, overlay_video_paths_by_class, overlay_image_paths_by_class=None, total_duration=None, 
+                fps=60, dark_background=False, use_blur=True):
         self.input_360_video_path = input_360_video_path
         self.overlay_video_paths_by_class = overlay_video_paths_by_class  # Dictionary mapping class indices to lists of videos
         self.overlay_image_paths_by_class = overlay_image_paths_by_class or {}  # Dictionary mapping class indices to lists of images
         self.total_duration = total_duration # seconds
-        self.video_fps = 30      # 30 fps
-        self.audio_FS = 24000    # sampling rate (24kHz)
+        self.video_fps = fps      # 30 fps
+        self.dark_background = dark_background # whether we want a black background video
+        self.use_blur = use_blur # whether we want to apply blur to background
         self.video_blur_kernel = random.randrange(61, 81, 2) # background canvas blur (positive and odd)
         # Open the 360-degree video
         self.cap_360 = cv2.VideoCapture(input_360_video_path)
@@ -200,7 +203,7 @@ class VisualSynthesizer:
         cv2.destroyAllWindows()
 
 
-    def get_frame_at_frame_number(self, frame_number, dark_background=False, use_blur=True):
+    def get_frame_at_frame_number(self, frame_number):
         frame_count = int(self.cap_360.get(cv2.CAP_PROP_FRAME_COUNT))
         if frame_count <= 0:
             # If we can't get frame count, create a blank frame
@@ -215,10 +218,10 @@ class VisualSynthesizer:
         if not ret:
             # If frame reading fails, create a blank frame
             frame = np.zeros((self.frame_height, self.frame_width, 3), dtype=np.uint8)
-        if dark_background:
+        if self.dark_background:
             # Use a dark background if requested
             frame = np.zeros_like(frame, dtype=np.uint8)
-        if use_blur:
+        if self.use_blur:
             # Apply a strong Gaussian blur to create a background similar to video calls
             # The kernel size can be adjusted based on the desired blur amount
             # A larger kernel creates a more intense blur
@@ -370,24 +373,83 @@ def extend_clip(input_video_path):
     print(f"Video extended and saved to {input_video_path}")
 
 
-# A collection of 360 videos to use as a canvas. Default condition is to make them all black to have a black canvas.
-input_360_video_path = "/scratch/data/audio-visual-seld-dcase2023/data_dcase2023_task3/video_dev/dev-train-tau-aug-acs"
-input_360_videos = [os.path.join(input_360_video_path, f) for f in os.listdir(input_360_video_path) if os.path.isfile(os.path.join(input_360_video_path, f))]
+def load_config(config_path):
+    """Load configuration from YAML file"""
+    with open(config_path, 'r') as f:
+        config = yaml.safe_load(f)
+    return config
 
-# A directory containing all video assets by event class (shared a sample in drive, see readme)
-video_assets_dir =  "/scratch/ssd1/audiovisual_datasets/class_events"
-image_assets_dir = "/scratch/ssd1/audiovisual_datasets/flickr30k_images_per_class/"
-overlay_video_paths_by_class = create_video_paths_dictionary(video_assets_dir)
-overlay_image_paths_by_class = create_image_paths_dictionary(image_assets_dir)
+def process_csv_file(csv_path, config):
+    """Process a single CSV metadata file to generate video"""
+    # Get base filename without extension for output
+    base_name = os.path.splitext(os.path.basename(csv_path))[0]
+    output_path = os.path.join(config['output']['video_dir'], base_name)
+    
+    # Choose a random 360 video as canvas
+    input_360_videos = [os.path.join(config['input']['video_360_path'], f) 
+                      for f in os.listdir(config['input']['video_360_path']) 
+                      if os.path.isfile(os.path.join(config['input']['video_360_path'], f))]
+    input_360_video_path = random.choice(input_360_videos)
+    
+    # Create video paths dictionaries
+    overlay_video_paths_by_class = create_video_paths_dictionary(config['input']['video_assets_dir'])
+    overlay_image_paths_by_class = create_image_paths_dictionary(config['input']['image_assets_dir'])
+    
+    # Create video synthesizer instance with config parameters
+    video_synth = VisualSynthesizer(
+        input_360_video_path, 
+        overlay_video_paths_by_class, 
+        overlay_image_paths_by_class, 
+        total_duration=config['processing']['video_duration'],
+        fps=config['processing']['fps'],
+        dark_background=config['processing']['dark_background'],
+        use_blur=config['processing']['use_blur'],
+    )
+    
+    # Generate video
+    video_synth.generate_visual_event_from_metadata(csv_path, output_path)
+    
+    return f"Processed {base_name}"
 
-# Initialize directoies:
-os.makedirs("./output", exist_ok=True)
-os.makedirs("./output/video", exist_ok=True)  
+def main():
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description='Visual Synthesis from CSV metadata')
+    parser.add_argument('--config', type=str, default='config.yaml', help='Path to config YAML file')
+    args = parser.parse_args()
+    
+    # Load configuration
+    config = load_config(args.config)
+    
+    # Create output directories
+    os.makedirs(config['output']['video_dir'], exist_ok=True)
+    
+    # Get all CSV files in the metadata directory
+    csv_files = glob.glob(os.path.join(config['input']['metadata_dir'], '*.csv'))
+    
+    if not csv_files:
+        print(f"No CSV files found in {config['input']['metadata_dir']}")
+        return
+    
+    # Process files in parallel
+    num_workers = min(config['processing']['workers'], len(csv_files))
+    print(f"Processing {len(csv_files)} CSV files with {num_workers} workers...")
+    
+    results = []
+    with ProcessPoolExecutor(max_workers=num_workers) as executor:
+        # Submit all processing tasks
+        future_to_csv = {executor.submit(process_csv_file, csv_file, config): csv_file for csv_file in csv_files}
+        
+        # Process results as they complete
+        for future in as_completed(future_to_csv):
+            csv_file = future_to_csv[future]
+            try:
+                result = future.result()
+                results.append(result)
+                print(result)
+            except Exception as e:
+                print(f"Error processing {os.path.basename(csv_file)}: {e}")
+    
+    print(f"Completed processing {len(results)} of {len(csv_files)} files.")
 
-metadata_path = "fold1_room4_mix120.csv" 
-
-for i in range(0, 1):
-	track_name = f'fold1_room4_mix120'  # File to save overlay info
-	input_360_video_path = random.choice(input_360_videos)
-	video_synth = VisualSynthesizer(input_360_video_path, overlay_video_paths_by_class, overlay_image_paths_by_class, total_duration=60)
-	video_synth.generate_visual_event_from_metadata(metadata_path, track_name)
+if __name__ == "__main__":
+    main()

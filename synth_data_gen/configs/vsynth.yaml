@@ -1,0 +1,30 @@
+# Visual Synthesis Configuration
+
+# Input paths
+input:
+  # Path to 360-degree videos to use as canvas
+  video_360_path: "/scratch/data/audio-visual-seld-dcase2023/data_dcase2023_task3/video_dev/dev-train-tau-aug-acs"
+  # Directory containing video assets by event class
+  video_assets_dir: "/scratch/ssd1/audiovisual_datasets/class_events"
+  # Directory containing image assets by event class (optional)
+  image_assets_dir: "/scratch/ssd1/audiovisual_datasets/flickr30k_images_per_class/"
+  # Directory containing metadata CSV files
+  metadata_dir: "/scratch/ssd1/audiovisual_datasets/soundq2_dataset/metadata"
+
+# Output paths
+output:
+  # Directory to save generated videos
+  video_dir: "/scratch/ssd1/audiovisual_datasets/soundq2_dataset/videos"
+
+# Processing parameters
+processing:
+  # Number of worker processes to use (set to number of CPU cores you want to utilize)
+  workers: 4
+  # Video duration in seconds (if None, uses the duration from metadata)
+  video_duration: 60
+  # Video FPS
+  fps: 30
+  # Whether to use a dark background (True/False)
+  dark_background: False
+  # Whether to apply blur to the background (True/False)
+  use_blur: True
