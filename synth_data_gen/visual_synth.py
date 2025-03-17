@@ -14,21 +14,27 @@ from collections import defaultdict
 from utils import *
 from audio_spatializer import *
 
+
 class VisualSynthesizer:
-    def __init__(self, input_360_video_path, overlay_video_paths_by_class, total_duration=None):
+    def __init__(self, input_360_video_path, overlay_video_paths_by_class, overlay_image_paths_by_class=None, total_duration=None):
         self.input_360_video_path = input_360_video_path
         self.overlay_video_paths_by_class = overlay_video_paths_by_class  # Dictionary mapping class indices to lists of videos
-        self.total_duration = total_duration
+        self.overlay_image_paths_by_class = overlay_image_paths_by_class or {}  # Dictionary mapping class indices to lists of images
+        self.total_duration = total_duration # seconds
         self.video_fps = 30      # 30 fps
         self.audio_FS = 24000    # sampling rate (24kHz)
+        self.video_blur_kernel = random.randrange(61, 81, 2) # background canvas blur (positive and odd)
         # Open the 360-degree video
         self.cap_360 = cv2.VideoCapture(input_360_video_path)
         self.frame_width = int(self.cap_360.get(3))
         self.frame_height = int(self.cap_360.get(4))
         if self.total_duration:
-            self.stream_total_frames = int(self.cap_360.get(cv2.CAP_PROP_FRAME_COUNT))  # Use original video's length
+            self.stream_total_frames = int(self.video_fps * self.total_duration)  # Use original video's length
         else:
             self.stream_total_frames = None
+        # Cache for loaded images
+        self.image_cache = {}
+
 
     def load_predefined_metadata(self, metadata_path):
         """
@@ -57,25 +63,39 @@ class VisualSynthesizer:
                     # Check if the source exists in our tracking dictionary
                     source_id = f"{class_index}_{source_index}"
                     if source_id not in source_tracks:
-                        # Assign a random video path from the class
-                        if str(class_index) in self.overlay_video_paths_by_class:
-                            video_paths = self.overlay_video_paths_by_class[str(class_index)]
-                            if video_paths:
-                                source_tracks[source_id] = {
-                                    'path': random.choice(video_paths),
-                                    'start_frame': frame_number,
-                                    'frames': [frame_number],
-                                    'azimuth_history': {frame_number: azimuth},
-                                    'elevation_history': {frame_number: elevation},
-                                    'distance_history': {frame_number: distance},
-                                    'class': str(class_index)
-                                }
-                            else:
-                                print(f"Warning: No video paths available for class {class_index}")
-                                continue
+                        # Randomly decide whether to use an image or video
+                        use_image = random.choice([True, False])
+                        path = None
+                        
+                        class_str = str(class_index)
+                        
+                        # Try to get the asset based on the random choice
+                        if use_image and class_str in self.overlay_image_paths_by_class and self.overlay_image_paths_by_class[class_str]:
+                            path = random.choice(self.overlay_image_paths_by_class[class_str])
+                        elif not use_image and class_str in self.overlay_video_paths_by_class and self.overlay_video_paths_by_class[class_str]:
+                            path = random.choice(self.overlay_video_paths_by_class[class_str])
                         else:
-                            print(f"Warning: Class {class_index} not found in video paths")
-                            continue
+                            # Fall back to whatever is available
+                            if class_str in self.overlay_video_paths_by_class and self.overlay_video_paths_by_class[class_str]:
+                                path = random.choice(self.overlay_video_paths_by_class[class_str])
+                                use_image = False
+                            elif class_str in self.overlay_image_paths_by_class and self.overlay_image_paths_by_class[class_str]:
+                                path = random.choice(self.overlay_image_paths_by_class[class_str])
+                                use_image = True
+                            else:
+                                print(f"Warning: No assets available for class {class_index}")
+                                continue
+                        
+                        source_tracks[source_id] = {
+                            'path': path,
+                            'is_image': use_image,
+                            'start_frame': frame_number,
+                            'frames': [frame_number],
+                            'azimuth_history': {frame_number: azimuth},
+                            'elevation_history': {frame_number: elevation},
+                            'distance_history': {frame_number: distance},
+                            'class': class_str
+                        }
                     else:
                         # Update the existing source track with new frame and coordinates
                         source_tracks[source_id]['frames'].append(frame_number)
@@ -105,6 +125,7 @@ class VisualSynthesizer:
             end_frame = (sorted_frames[-1] + 1)  # Add 1 since events end after the last frame
             events_history.append({
                 'path': track_data['path'],
+                'is_image': track_data.get('is_image', False),
                 'class': track_data['class'],
                 'trackidx': source_id,
                 'start_frame': start_frame,
@@ -118,7 +139,7 @@ class VisualSynthesizer:
         return events_history
 
 
-    def generate_audiovisual_event_from_metadata(self, metadata_path, mix_name):
+    def generate_visual_event_from_metadata(self, metadata_path, mix_name):
         """Generate audiovisual content using pre-defined metadata"""
         self.events_history, self.metadata_by_frame = self.load_predefined_metadata(metadata_path)
         self.generate_video_mix_360(os.path.join("output/video/", mix_name))
@@ -150,16 +171,20 @@ class VisualSynthesizer:
                     # Find the corresponding event in events_history
                     for event in self.events_history:
                         if event['trackidx'] == source_id:
-                            overlay_video = cv2.VideoCapture(event['path'])
-                            
-                            # Calculate relative frame in the overlay video
-                            relative_frame = iframe - event['start_frame']
-                            if relative_frame < 0:
-                                continue
-                                
-                            # Get overlay frame
-                            overlay_frame = self.get_overlay_frame(overlay_video, relative_frame % int(overlay_video.get(cv2.CAP_PROP_FRAME_COUNT)))
-                            overlay_video.release()
+                            # Get the overlay frame (either from image or video)
+                            overlay_frame = None
+                            if event['is_image']:
+                                overlay_frame = self.get_image_frame(event['path'])
+                            else:
+                                overlay_video = cv2.VideoCapture(event['path'])
+                                # Calculate relative frame in the overlay video
+                                relative_frame = iframe - event['start_frame']
+                                if relative_frame < 0:
+                                    continue
+                                    
+                                # Get overlay frame
+                                overlay_frame = self.get_overlay_frame(overlay_video, relative_frame % int(overlay_video.get(cv2.CAP_PROP_FRAME_COUNT)))
+                                overlay_video.release()
                             
                             if overlay_frame is not None:
                                 overlay_frame = self.resize_overlay_frame(overlay_frame, 200, 200)
@@ -175,7 +200,7 @@ class VisualSynthesizer:
         cv2.destroyAllWindows()
 
 
-    def get_frame_at_frame_number(self, frame_number, dark_background=True):
+    def get_frame_at_frame_number(self, frame_number, dark_background=False, use_blur=True):
         frame_count = int(self.cap_360.get(cv2.CAP_PROP_FRAME_COUNT))
         if frame_count <= 0:
             # If we can't get frame count, create a blank frame
@@ -190,10 +215,15 @@ class VisualSynthesizer:
         if not ret:
             # If frame reading fails, create a blank frame
             frame = np.zeros((self.frame_height, self.frame_width, 3), dtype=np.uint8)
-        elif dark_background:
+        if dark_background:
             # Use a dark background if requested
             frame = np.zeros_like(frame, dtype=np.uint8)
-            
+        if use_blur:
+            # Apply a strong Gaussian blur to create a background similar to video calls
+            # The kernel size can be adjusted based on the desired blur amount
+            # A larger kernel creates a more intense blur
+            frame = cv2.GaussianBlur(frame, (self.video_blur_kernel, self.video_blur_kernel), 0) 
+
         return frame
 
 
@@ -208,6 +238,21 @@ class VisualSynthesizer:
         if not ret_overlay:
             return None
         return overlay_frame
+
+
+    def get_image_frame(self, image_path):
+        """Load and return an image frame, using cache for efficiency"""
+        if image_path in self.image_cache:
+            return self.image_cache[image_path].copy()
+        
+        image = cv2.imread(image_path)
+        if image is None:
+            print(f"Warning: Failed to load image: {image_path}")
+            return None
+        
+        # Cache the image for future use
+        self.image_cache[image_path] = image.copy()
+        return image
 
 
     def overlay_frame_on_360(self, frame_360, overlay_frame, azimuth, elevation):
@@ -258,6 +303,40 @@ def create_video_paths_dictionary(root_directory):
     return video_paths_by_class
 
 
+def create_image_paths_dictionary(root_directory):
+    """
+    Creates a dictionary where keys are class numbers (as strings) and values are lists of
+    paths to image files (jpg, jpeg, png) in the corresponding class subdirectory.
+    
+    Args:
+        root_directory (str): Path to the root directory containing class subdirectories
+        
+    Returns:
+        dict: Dictionary mapping class numbers to lists of image file paths
+    """
+    image_paths_by_class = {}
+    # Get all subdirectories in the root directory
+    if not os.path.exists(root_directory):
+        print(f"Warning: Directory does not exist: {root_directory}")
+        return image_paths_by_class
+        
+    subdirectories = [d for d in os.listdir(root_directory) if os.path.isdir(os.path.join(root_directory, d))]
+    # Process each subdirectory
+    for subdir in subdirectories:
+        # Extract class number using regex
+        class_num = subdir.split("_")[1]
+        # Initialize an empty list for this class if it doesn't exist
+        if class_num not in image_paths_by_class:
+            image_paths_by_class[class_num] = []
+        # Get all image files in this subdirectory
+        subdir_path = os.path.join(root_directory, subdir)
+        image_files = [os.path.join(subdir_path, f) for f in os.listdir(subdir_path) 
+                      if f.lower().endswith(('.jpg', '.jpeg', '.png')) and os.path.isfile(os.path.join(subdir_path, f))]
+        # Add all image files to the list for this class
+        image_paths_by_class[class_num].extend(image_files)
+    return image_paths_by_class
+
+
 def double_video_length(video_path):
     clip = VideoFileClip(video_path)
     if clip.duration < 2:
@@ -299,6 +378,7 @@ input_360_videos = [os.path.join(input_360_video_path, f) for f in os.listdir(in
 video_assets_dir =  "/scratch/ssd1/audiovisual_datasets/class_events"
 image_assets_dir = "/scratch/ssd1/audiovisual_datasets/flickr30k_images_per_class/"
 overlay_video_paths_by_class = create_video_paths_dictionary(video_assets_dir)
+overlay_image_paths_by_class = create_image_paths_dictionary(image_assets_dir)
 
 # Initialize directoies:
 os.makedirs("./output", exist_ok=True)
@@ -309,5 +389,5 @@ metadata_path = "fold1_room4_mix120.csv"
 for i in range(0, 1):
 	track_name = f'fold1_room4_mix120'  # File to save overlay info
 	input_360_video_path = random.choice(input_360_videos)
-	video_overlay = VisualSynthesizer(input_360_video_path, overlay_video_paths_by_class)
-	video_overlay.generate_audiovisual_event_from_metadata(metadata_path, track_name)
+	video_synth = VisualSynthesizer(input_360_video_path, overlay_video_paths_by_class, overlay_image_paths_by_class, total_duration=60)
+	video_synth.generate_visual_event_from_metadata(metadata_path, track_name)
