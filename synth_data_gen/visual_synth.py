@@ -51,7 +51,7 @@ class VisualSynthesizer:
                 source_index = int(row[2])
                 azimuth = int(row[3])
                 elevation = int(row[4])
-                distance = int(row[5])
+                distance = int(float(row[5])*100)
             
                 for frame_number in range(frame_number_30fps, frame_number_30fps+3):
                     # Check if the source exists in our tracking dictionary
@@ -297,16 +297,17 @@ input_360_videos = [os.path.join(input_360_video_path, f) for f in os.listdir(in
 
 # A directory containing all video assets by event class (shared a sample in drive, see readme)
 video_assets_dir =  "/scratch/ssd1/audiovisual_datasets/class_events"
+image_assets_dir = "/scratch/ssd1/audiovisual_datasets/flickr30k_images_per_class/"
 overlay_video_paths_by_class = create_video_paths_dictionary(video_assets_dir)
 
 # Initialize directoies:
 os.makedirs("./output", exist_ok=True)
 os.makedirs("./output/video", exist_ok=True)  
 
-metadata_path = "metadata_dev/dev-test-sony/fold4_room23_mix001.csv" 
+metadata_path = "fold1_room4_mix120.csv" 
 
 for i in range(0, 1):
-	track_name = f'fold6_roomMETU_mix{i:03d}'.format(i)  # File to save overlay info
+	track_name = f'fold1_room4_mix120'  # File to save overlay info
 	input_360_video_path = random.choice(input_360_videos)
 	video_overlay = VisualSynthesizer(input_360_video_path, overlay_video_paths_by_class)
 	video_overlay.generate_audiovisual_event_from_metadata(metadata_path, track_name)
