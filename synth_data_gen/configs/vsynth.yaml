@@ -4,6 +4,8 @@
 input:
   # Path to 360-degree videos to use as canvas
   video_360_path: "/scratch/data/audio-visual-seld-dcase2023/data_dcase2023_task3/video_dev/dev-train-tau-aug-acs"
+  # New path for 360 images
+  image_360_path: "/scratch/ssd1/audiovisual_datasets/Img_360"
   # Directory containing video assets by event class
   video_assets_dir: "/scratch/ssd1/audiovisual_datasets/class_events"
   # Directory containing image assets by event class (optional)
@@ -27,4 +29,6 @@ processing:
   # Whether to use a dark background (True/False)
   dark_background: False
   # Whether to apply blur to the background (True/False)
-  use_blur: True
+  use_blur: False
+  # Choose between image or video background
+  use_image_background: True
