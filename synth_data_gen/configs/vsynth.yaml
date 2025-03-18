@@ -17,11 +17,12 @@ input:
 output:
   # Directory to save generated videos
   video_dir: "/scratch/ssd1/audiovisual_datasets/soundq2_dataset/videos"
+  log_file: "/scratch/ssd1/audiovisual_datasets/soundq2_dataset/processing_log.txt"
 
 # Processing parameters
 processing:
   # Number of worker processes to use (set to number of CPU cores you want to utilize)
-  workers: 4
+  workers: 8
   # Video duration in seconds (if None, uses the duration from metadata)
   video_duration: 60
   # Video FPS

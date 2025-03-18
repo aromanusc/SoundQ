@@ -1,6 +1,7 @@
 import os
 import cv2
 import csv
+import time
 import random
 import numpy as np
 from tqdm import tqdm
@@ -418,13 +419,37 @@ def load_config(config_path):
         config = yaml.safe_load(f)
     return config
 
+def get_processed_files(log_path):
+    """Read the log file and return a set of already processed files"""
+    processed_files = set()
+    if os.path.exists(log_path):
+        with open(log_path, 'r') as log_file:
+            for line in log_file:
+                # Extract the filename from the log entry
+                parts = line.strip().split()
+                if len(parts) >= 3 and parts[0] == "Processed":
+                    processed_files.add(parts[1])
+    return processed_files
 
-def process_csv_file(csv_path, config):
+
+def log_processed_file(log_path, filename, start_time):
+    """Log a successfully processed file with timestamp"""
+    with open(log_path, 'a') as log_file:
+        duration = time.time() - start_time
+        timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+        log_file.write(f"Processed {filename} - {timestamp} - Duration: {duration:.2f}s\n")
+
+
+def process_csv_file(csv_path, config, processed_files):
     """Process a single CSV metadata file to generate video"""
     # Get base filename without extension for output
     base_name = os.path.splitext(os.path.basename(csv_path))[0]
     output_path = os.path.join(config['output']['video_dir'], base_name)
-    
+
+    # Skip if this file has already been processed
+    if base_name in processed_files:
+        return f"Skipped {base_name} (already processed)"
+
     # Choose a random 360 video as canvas (only if using video background)
     input_360_video_path = None
     input_360_image_path = None
@@ -458,8 +483,14 @@ def process_csv_file(csv_path, config):
         use_blur=config['processing']['use_blur'],
     )
     
+    start_time = time.time()
+    output_path = os.path.join(config['output']['video_dir'], base_name)
+
     # Generate video
     video_synth.generate_visual_event_from_metadata(csv_path, output_path)
+    
+    # Log the successful processing
+    log_processed_file(config['output']['log_file'], base_name, start_time)
     
     return f"Processed {base_name}"
 
@@ -468,6 +499,7 @@ def main():
     # Parse command line arguments
     parser = argparse.ArgumentParser(description='Visual Synthesis from CSV metadata')
     parser.add_argument('--config', type=str, default='config.yaml', help='Path to config YAML file')
+    parser.add_argument('--resume', action='store_true', help='Resume processing, skip already processed files')
     args = parser.parse_args()
     
     # Load configuration
@@ -475,6 +507,16 @@ def main():
     
     # Create output directories
     os.makedirs(config['output']['video_dir'], exist_ok=True)
+
+    # Set log file path
+    if 'log_file' not in config['output']:
+        config['output']['log_file'] = os.path.join(config['output']['video_dir'], 'processing_log.txt')
+
+    # Get list of already processed files if resume flag is set
+    processed_files = set()
+    if args.resume:
+        processed_files = get_processed_files(config['output']['log_file'])
+        print(f"Found {len(processed_files)} already processed files")
     
     # Get all CSV files in the metadata directory
     csv_files = glob.glob(os.path.join(config['input']['metadata_dir'], '*.csv'))
@@ -490,7 +532,7 @@ def main():
     results = []
     with ProcessPoolExecutor(max_workers=num_workers) as executor:
         # Submit all processing tasks
-        future_to_csv = {executor.submit(process_csv_file, csv_file, config): csv_file for csv_file in csv_files}
+        future_to_csv = {executor.submit(process_csv_file, csv_file, config, processed_files): csv_file for csv_file in csv_files}
         
         # Process results as they complete
         for future in as_completed(future_to_csv):
